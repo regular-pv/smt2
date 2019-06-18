@@ -1,0 +1,67 @@
+use std::result;
+use std::fmt;
+use crate::syntax;
+use crate::{Location, Localisable, GroundSort, Environment};
+
+pub struct Error<E: Environment, F: Clone> {
+	pub location: Location<F>,
+	pub kind: Kind<E, F>
+}
+
+impl<E: Environment, F: Clone> Error<E, F> {
+	fn new(kind: Kind<E, F>, location: Location<F>) -> Error<E, F> {
+		Error {
+			location: location,
+			kind: kind
+		}
+	}
+}
+
+impl<E: Environment, F: Clone> Localisable<F> for Error<E, F> {
+	fn location(&self) -> &Location<F> {
+		&self.location
+	}
+}
+
+pub enum Kind<E: Environment, F: Clone> {
+	UnknownLogic,
+	InvalidSymbol(syntax::Symbol<F>),
+	InvalidIdent(syntax::Ident<F>),
+	UnknownSort,
+	UnknownFunction,
+	UndefinedVariable(E::Ident),
+	NegativeArity,
+	WrongNumberOfArguments(usize, usize), // (expected, given).
+	TypeMissmatch(GroundSort<E::Sort>, GroundSort<E::Sort>)
+}
+
+impl<E: Environment, F: Clone> Kind<E, F> {
+	pub fn at(self, location: Location<F>) -> Error<E, F> {
+		Error::new(self, location)
+	}
+}
+
+pub type Result<T, E, F> = result::Result<T, Error<E, F>>;
+
+impl<E: Environment, F: Clone> fmt::Display for Error<E, F> where E::Sort: fmt::Display, E::Ident: fmt::Display {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		self.kind.fmt(f)
+    }
+}
+
+impl<E: Environment, F: Clone> fmt::Display for Kind<E, F> where E::Sort: fmt::Display, E::Ident: fmt::Display {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		use self::Kind::*;
+		match self {
+			UnknownLogic => write!(f, "unknown logic"),
+			InvalidSymbol(sym) => write!(f, "unknown symbol `{}`", sym),
+			InvalidIdent(id) => write!(f, "unknown ident `{}`", id),
+			UnknownSort => write!(f, "unknown sort"),
+			UnknownFunction => write!(f, "unknown function"),
+			UndefinedVariable(id) => write!(f, "undefined variable `{}`", id),
+			NegativeArity => write!(f, "arity must be positive or zero"),
+			WrongNumberOfArguments(expected, given) => write!(f, "wrong number of arguments (expected {}, given {})", expected, given),
+			TypeMissmatch(expected, given) => write!(f, "expected sort `{}`, got `{}`", expected, given)
+		}
+    }
+}
