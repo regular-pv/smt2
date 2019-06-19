@@ -31,7 +31,7 @@ pub enum Kind<E: Environment, F: Clone> {
 	UnknownFunction,
 	UndefinedVariable(E::Ident),
 	NegativeArity,
-	WrongNumberOfArguments(usize, usize), // (expected, given).
+	WrongNumberOfArguments(usize, usize, usize), // (expected_min, expected_max, given).
 	TypeMissmatch(GroundSort<E::Sort>, GroundSort<E::Sort>)
 }
 
@@ -60,7 +60,17 @@ impl<E: Environment, F: Clone> fmt::Display for Kind<E, F> where E::Sort: fmt::D
 			UnknownFunction => write!(f, "unknown function"),
 			UndefinedVariable(id) => write!(f, "undefined variable `{}`", id),
 			NegativeArity => write!(f, "arity must be positive or zero"),
-			WrongNumberOfArguments(expected, given) => write!(f, "wrong number of arguments (expected {}, given {})", expected, given),
+			WrongNumberOfArguments(min, max, given) => {
+				if min == max {
+					write!(f, "wrong number of arguments (expected {}, given {})", min, given)
+				} else {
+					if given < min {
+						write!(f, "wrong number of arguments (expected at least {}, given {})", min, given)
+					} else {
+						write!(f, "wrong number of arguments (expected at most {}, given {})", max, given)
+					}
+				}
+			},
 			TypeMissmatch(expected, given) => write!(f, "expected sort `{}`, got `{}`", expected, given)
 		}
     }

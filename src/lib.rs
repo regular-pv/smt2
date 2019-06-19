@@ -9,7 +9,7 @@ pub use error::{Error, Result};
 pub mod syntax;
 pub use syntax::lexer::{self, Lexer, Decoder};
 
-pub type ExecResult<E> = std::result::Result<(), E>;
+pub type ExecResult<T, E> = std::result::Result<T, E>;
 
 /**
  * Printable list.
@@ -402,7 +402,7 @@ pub enum Command<E: Environment, F: Clone> {
 
 impl<E: Environment, F: Clone> Command<E, F> {
     /// Execute the command on the given environment.
-    pub fn exec(mut self, env: &mut E) -> ExecResult<E::Error> {
+    pub fn exec(mut self, env: &mut E) -> ExecResult<(), E::Error> {
         use Command::*;
         match self {
             Assert(term) => env.assert(&term)?,
@@ -438,7 +438,7 @@ pub trait Function<E: Environment> {
     /// Return the arity of the function.
     /// It is assumed that, for a given environment, the result of this function will always be
     /// the same.
-    fn arity(&self, env: &E) -> usize;
+    fn arity(&self, env: &E) -> (usize, usize);
 
     /// Return the expected sort for the given parameter index.
     /// It is assumed that, for a given index and environment, the result of this function will
@@ -478,28 +478,28 @@ pub trait Environment: Sized {
     fn function(&self, id: &Self::Ident) -> Option<Self::Function>;
 
     /// Assert.
-    fn assert(&mut self, term: &Term<Self>) -> ExecResult<Self::Error>;
+    fn assert(&mut self, term: &Term<Self>) -> ExecResult<(), Self::Error>;
 
     /// Check satifiability.
-    fn check_sat(&mut self) -> ExecResult<Self::Error>;
+    fn check_sat(&mut self) -> ExecResult<(), Self::Error>;
 
     /// Declare a new constant.
-    fn declare_const(&mut self, id: &Self::Ident, sort: &GroundSort<Self::Sort>) -> ExecResult<Self::Error>;
+    fn declare_const(&mut self, id: &Self::Ident, sort: &GroundSort<Self::Sort>) -> ExecResult<(), Self::Error>;
 
     /// Declare new sort.
-    fn declare_sort(&mut self, decl: &SortDeclaration<Self>) -> ExecResult<Self::Error>;
+    fn declare_sort(&mut self, decl: &SortDeclaration<Self>) -> ExecResult<(), Self::Error>;
 
     /// Declare new function.
-    fn declare_fun(&mut self, id: &Self::Ident, args: &Vec<GroundSort<Self::Sort>>, return_sort: &GroundSort<Self::Sort>) -> ExecResult<Self::Error>;
+    fn declare_fun(&mut self, id: &Self::Ident, args: &Vec<GroundSort<Self::Sort>>, return_sort: &GroundSort<Self::Sort>) -> ExecResult<(), Self::Error>;
 
     /// Define previously declared sort.
-    fn define_sort(&mut self, id: &Self::Ident, def: &DataTypeDeclaration<Self>) -> ExecResult<Self::Error>;
+    fn define_sort(&mut self, id: &Self::Ident, def: &DataTypeDeclaration<Self>) -> ExecResult<(), Self::Error>;
 
     /// Exit the solver.
-    fn exit(&mut self) -> ExecResult<Self::Error>;
+    fn exit(&mut self) -> ExecResult<(), Self::Error>;
 
     /// Set the solver's logic.
-    fn set_logic(&mut self, logic: &Self::Logic) -> ExecResult<Self::Error>;
+    fn set_logic(&mut self, logic: &Self::Logic) -> ExecResult<(), Self::Error>;
 }
 
 pub fn compile_term<E: Environment, F: Clone>(env: &E, ctx: &Context<E>, term: &syntax::Term<F>) -> Result<Term<E>, E, F> {
@@ -552,10 +552,13 @@ pub fn compile_term<E: Environment, F: Clone>(env: &E, ctx: &Context<E>, term: &
         },
         syntax::TermKind::Exists { vars, body } => {
             let mut compiled_vars = Vec::with_capacity(vars.len());
+            let mut new_ctx = Context::from(ctx);
             for var in vars.iter() {
-                compiled_vars.push(compile_sorted_var(env, &var)?)
+                let compiled_var = compile_sorted_var(env, &var)?;
+                new_ctx.push(&compiled_var.id, &compiled_var.sort);
+                compiled_vars.push(compiled_var)
             }
-            let body = compile_term(env, ctx, &body)?;
+            let body = compile_term(env, &new_ctx, &body)?;
 
             Ok(Term::Exists {
                 vars: compiled_vars,
@@ -565,15 +568,15 @@ pub fn compile_term<E: Environment, F: Clone>(env: &E, ctx: &Context<E>, term: &
         syntax::TermKind::Apply { id, args } => {
             let fun = compile_function(env, &id)?;
 
-            let arity = fun.arity(env);
-            if args.len() != arity {
-                Err(error::Kind::WrongNumberOfArguments(arity, args.len()).at(loc))
+            let (arity_min, arity_max) = fun.arity(env);
+            if args.len() < arity_min || args.len() > arity_max {
+                Err(error::Kind::WrongNumberOfArguments(arity_min, arity_max, args.len()).at(loc))
             } else {
                 let mut compiled_args = Vec::with_capacity(args.len());
                 for (i, arg) in args.iter().enumerate() {
                     let term = compile_term(env, ctx, &arg)?;
 
-                    let expected_type = fun.result(env);
+                    let expected_type = fun.sort(env, i).unwrap();
                     let given_type = term.sort(env, ctx);
                     if given_type != expected_type {
                         return Err(error::Kind::TypeMissmatch(expected_type, given_type).at(arg.location().clone()))
