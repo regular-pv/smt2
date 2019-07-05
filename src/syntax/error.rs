@@ -28,7 +28,8 @@ impl<F: Clone> Localisable<F> for Error<F> {
 pub enum Kind {
 	MissingClosingParenthesis,
 	UnexpectedToken(token::Kind, Option<token::Kind>),
-	UnknownCommand(String)
+	UnknownCommand(String),
+	Server(String)
 }
 
 impl Kind {
@@ -52,7 +53,8 @@ impl fmt::Display for Kind {
 			MissingClosingParenthesis => write!(f, "missing parenthesis `)'"),
 			UnexpectedToken(t, None) => write!(f, "unexpected token `{}'", t),
 			UnexpectedToken(t, Some(e)) => write!(f, "unexpected token: excepted `{}', got `{}'", e, t),
-			UnknownCommand(name) => write!(f, "unknown command `{}'", name)
+			UnknownCommand(name) => write!(f, "unknown command `{}'", name),
+			Server(name) => write!(f, "server error: {}", name)
 		}
     }
 }

@@ -55,7 +55,7 @@ impl<'b, I: 'b + Iterator<Item=char>, F: 'b + Clone>  fmt::Display for PrettyPri
                                     for _ in start.column..end.column {
                                         underline.push('^');
                                     }
-                                    write!(f, "\x1b[1;34m{} | \x1b[1;31m{}\x1b[m\n", margin, underline);
+                                    write!(f, "\x1b[1;34m{} | \x1b[1;31m{}\x1b[m\n", margin, underline)?;
                                 }
                             }
                         }

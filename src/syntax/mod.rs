@@ -7,21 +7,19 @@ use std::iter::Peekable;
 pub use crate::location::*;
 
 pub mod error;
-pub use error::*;
-
 pub mod ast;
-pub use ast::*;
-
 pub mod token;
-pub use token::Token;
-
 pub mod utf8;
 pub mod lexer;
-pub use lexer::Lexer;
-
 pub mod buffer;
-pub use buffer::Buffer;
 pub mod pp;
+pub mod response;
+
+pub use error::*;
+pub use ast::*;
+pub use token::Token;
+pub use lexer::Lexer;
+pub use buffer::Buffer;
 pub use pp::PrettyPrinter;
 
 pub trait Parsable<F: Clone> : Sized {
@@ -35,7 +33,7 @@ pub trait Parsable<F: Clone> : Sized {
 /**
  * Peek the next token from a lexer.
  */
-fn peek<L, F: Clone>(lexer: &mut Peekable<L>) -> Result<Token<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
+pub(crate) fn peek<L, F: Clone>(lexer: &mut Peekable<L>) -> Result<Token<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
 	match lexer.peek() {
 		Some(Ok(token)) => Ok(token.clone()),
 		None => Ok(token::Kind::EndOfFile.at(Location::nowhere())),
@@ -46,7 +44,7 @@ fn peek<L, F: Clone>(lexer: &mut Peekable<L>) -> Result<Token<F>, F> where L: It
 /**
  * Consume the next token from a lexer.
  */
-fn consume<L, F: Clone>(lexer: &mut Peekable<L>) -> Result<Token<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
+pub(crate) fn consume<L, F: Clone>(lexer: &mut Peekable<L>) -> Result<Token<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
 	match lexer.next() {
 		Some(Ok(token)) => Ok(token.clone()),
 		None => Ok(token::Kind::EndOfFile.at(Location::nowhere())),
@@ -57,7 +55,7 @@ fn consume<L, F: Clone>(lexer: &mut Peekable<L>) -> Result<Token<F>, F> where L:
 /**
  * Consume the next token and ensure it is of the given kind.
  */
-fn consume_token<L, F: Clone>(lexer: &mut Peekable<L>, kind: token::Kind) -> Result<Location<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
+pub(crate) fn consume_token<L, F: Clone>(lexer: &mut Peekable<L>, kind: token::Kind) -> Result<Location<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
 	let token = consume(lexer)?;
 	if token.kind == kind {
 		Ok(token.location().clone())
@@ -66,7 +64,7 @@ fn consume_token<L, F: Clone>(lexer: &mut Peekable<L>, kind: token::Kind) -> Res
 	}
 }
 
-fn parse_list<L, T: Parsable<F>, F: Clone>(lexer: &mut Peekable<L>, loc: &mut Location<F>) -> Result<Vec<T>, F> where L: Iterator<Item=Result<Token<F>, F>> {
+pub(crate) fn parse_list<L, T: Parsable<F>, F: Clone>(lexer: &mut Peekable<L>, loc: &mut Location<F>) -> Result<Vec<T>, F> where L: Iterator<Item=Result<Token<F>, F>> {
     use token::Kind::*;
     let mut list = Vec::new();
 
@@ -90,17 +88,17 @@ fn parse_list<L, T: Parsable<F>, F: Clone>(lexer: &mut Peekable<L>, loc: &mut Lo
     Ok(list)
 }
 
-impl<F: Clone> Parsable<F> for Constant {
-    fn parse<L>(lexer: &mut Peekable<L>) -> Result<Constant, F> where L: Iterator<Item=Result<Token<F>, F>> {
-        use token::Kind::*;
-        let token = consume(lexer)?;
-        let loc = token.location().clone();
-        match token.kind {
-            Litteral(token::Litteral::Int(i)) => Ok(Constant::Int(i)),
-            unexpected => Err(error::Kind::UnexpectedToken(unexpected, None).at(loc))
-        }
-    }
-}
+// impl<F: Clone> Parsable<F> for Constant {
+//     fn parse<L>(lexer: &mut Peekable<L>) -> Result<Constant, F> where L: Iterator<Item=Result<Token<F>, F>> {
+//         use token::Kind::*;
+//         let token = consume(lexer)?;
+//         let loc = token.location().clone();
+//         match token.kind {
+//             Litteral(token::Litteral::Int(i)) => Ok(Constant::Int(i)),
+//             unexpected => Err(error::Kind::UnexpectedToken(unexpected, None).at(loc))
+//         }
+//     }
+// }
 
 impl<F: Clone> Parsable<F> for Symbol<F> {
     fn parse<L>(lexer: &mut Peekable<L>) -> Result<Symbol<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
@@ -124,10 +122,10 @@ impl<F: Clone> Parsable<F> for Index<F> {
 
         use token::Kind::*;
         let kind = match token.kind {
-            Litteral(token::Litteral::Int(i)) => {
-                consume(lexer)?;
-                IndexKind::Numeral(i)
-            },
+            // Litteral(token::Litteral::Int(i)) => {
+            //     consume(lexer)?;
+            //     IndexKind::Numeral(i)
+            // },
             Ident(_) => {
                 let symbol = Symbol::<F>::parse(lexer)?;
                 IndexKind::Symbol(symbol)
@@ -248,10 +246,10 @@ impl<F: Clone> Parsable<F> for AttributeValue<F> {
                 AttributeValueKind::Sym(id)
             },
 
-            Litteral(_) => {
-                let c = Constant::parse(lexer)?;
-                AttributeValueKind::Const(c)
-            },
+            // Litteral(_) => {
+            //     let c = Constant::parse(lexer)?;
+            //     AttributeValueKind::Const(c)
+            // },
 
             Begin => {
                 consume(lexer)?;
@@ -308,10 +306,10 @@ impl<F: Clone> Parsable<F> for SExpr<F> {
                 }
             },
 
-            Litteral(_) => {
-                let c = Constant::parse(lexer)?;
-                SExprKind::Const(c)
-            },
+            // Litteral(_) => {
+            //     let c = Constant::parse(lexer)?;
+            //     SExprKind::Const(c)
+            // },
 
             Begin => {
                 consume(lexer)?;
@@ -466,10 +464,10 @@ impl<F: Clone> Parsable<F> for Term<F> {
                 }
             },
 
-            Litteral(_) => {
-                let c = Constant::parse(lexer)?;
-                TermKind::Const(c)
-            },
+            // Litteral(_) => {
+            //     let c = Constant::parse(lexer)?;
+            //     TermKind::Const(c)
+            // },
 
 			_ => {
                 let id = ast::Ident::<F>::parse(lexer)?;
@@ -526,7 +524,7 @@ impl<F: Clone> Parsable<F> for DataTypeDeclaration<F> {
 		let next_token = peek(lexer)?;
 		match next_token.kind {
 			Ident(ref id) if id == "par" => {
-				consume(lexer);
+				consume(lexer)?;
 				consume_token(lexer, Begin)?;
 				parameters = parse_list(lexer, &mut loc)?;
 				consume_token(lexer, Begin)?;

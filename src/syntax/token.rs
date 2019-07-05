@@ -5,7 +5,7 @@ use super::{Location, Localisable};
 /**
  * Token
  */
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Token<F: Clone> {
 	pub location: Location<F>,
 	pub kind: Kind
@@ -20,15 +20,17 @@ impl<F: Clone> Localisable<F> for Token<F> {
 /**
  * Litteral constants.
  */
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Litteral {
 	/**
 	 * Signed numeric value.
 	 */
-	Int(i64)
+	Int(i64),
+
+	String(String)
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Kind {
 	/**
 	 * End of file token.
@@ -53,7 +55,7 @@ pub enum Kind {
 	/**
 	 * Litteral constant.
 	 */
-	Litteral(Litteral)
+	Litteral(Litteral),
 }
 
 impl Kind {
@@ -88,7 +90,8 @@ impl fmt::Display for Litteral {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		use self::Litteral::*;
 		match self {
-			Int(i) => write!(f, "{}", i)
+			Int(i) => write!(f, "{}", i),
+			String(string) => write!(f, "\"{}\"", string)
 		}
     }
 }

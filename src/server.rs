@@ -1,16 +1,13 @@
 use std::fmt;
-use std::hash::{Hash, Hasher};
 
 pub mod location;
-pub mod error;
-pub mod syntax;
-pub mod response;
-pub mod client;
-
 pub use location::*;
+
+pub mod error;
 pub use error::{Error, Result};
+
+pub mod syntax;
 pub use syntax::lexer::{self, Lexer, Decoder};
-pub use client::Client;
 
 pub type ExecResult<T, E> = std::result::Result<T, E>;
 
@@ -103,6 +100,7 @@ pub enum Constant {
 
 /// A term.
 pub enum Term<E: Environment> {
+    Const(Constant),
     Var {
         /// unique identified in the current variable environment.
         index: usize,
@@ -130,17 +128,10 @@ pub enum Term<E: Environment> {
 }
 
 impl<E: Environment> Term<E> {
-    pub fn apply(fun: E::Function, args: Vec<Term<E>>, sort: GroundSort<E::Sort>) -> Term<E> {
-        Term::Apply {
-            fun: fun,
-            args: Box::new(args),
-            sort: sort
-        }
-    }
-
     pub fn sort(&self, env: &E, ctx: &Context<E>) -> GroundSort<E::Sort> {
         use Term::*;
         match self {
+            Const(_) => panic!("TODO: sort of const!"),
             Var { index, .. } => ctx.sort(*index).clone(),
             Let { body, .. } => {
                 body.sort(env, ctx)
@@ -152,41 +143,10 @@ impl<E: Environment> Term<E> {
     }
 }
 
-impl<E: Environment> fmt::Display for Term<E> where E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use Term::*;
-        match self {
-            Var { id, .. } => write!(f, "{}", id),
-            Let { bindings, body } => {
-                write!(f, "(let ({}) {})", PList(bindings), body)
-            },
-            Forall { vars, body } => {
-                write!(f, "(forall ({}) {})", PList(vars), body)
-            },
-            Exists { vars, body } => {
-                write!(f, "(exists ({}) {})", PList(vars), body)
-            },
-            Apply { fun, args, .. } => {
-                if args.is_empty() {
-                    write!(f, "{}", fun)
-                } else {
-                    write!(f, "({} {})", fun, PList(args))
-                }
-            }
-        }
-    }
-}
-
 /// Variable binding.
 pub struct Binding<E: Environment> {
     pub id: E::Ident,
     pub value: Box<Term<E>>
-}
-
-impl<E: Environment> fmt::Display for Binding<E> where E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({} {})", self.id, self.value)
-    }
 }
 
 /// Sorted variable.
@@ -195,26 +155,11 @@ pub struct SortedVar<E: Environment> {
     pub sort: GroundSort<E::Sort>
 }
 
-impl<E: Environment> fmt::Display for SortedVar<E> where E::Ident: fmt::Display, E::Sort: fmt::Display {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({} {})", self.id, self.sort)
-    }
-}
-
 /// A ground sort is a sort fully applied (arity 0).
 #[derive(PartialEq)]
 pub struct GroundSort<T> {
     pub sort: T,
     pub parameters: Vec<GroundSort<T>>
-}
-
-impl<T> GroundSort<T> {
-    pub fn new(sort: T) -> GroundSort<T> {
-        GroundSort {
-            sort: sort,
-            parameters: Vec::new()
-        }
-    }
 }
 
 impl<T: fmt::Display> fmt::Display for GroundSort<T> {
@@ -232,15 +177,6 @@ impl<T: Clone> Clone for GroundSort<T> {
         GroundSort {
             sort: self.sort.clone(),
             parameters: self.parameters.clone()
-        }
-    }
-}
-
-impl<T: Hash> Hash for GroundSort<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.sort.hash(state);
-        for p in self.parameters.iter() {
-            p.hash(state)
         }
     }
 }
@@ -527,14 +463,20 @@ pub enum Command<E: Environment, F: Clone> {
     SetLogic(E::Logic)
 }
 
-impl<E: Server, F: Clone> Command<E, F> {
+pub enum CheckSatResult {
+    Sat,
+    Unsat,
+    Unknown
+}
+
+impl<E: Environment, F: Clone> Command<E, F> {
     /// Execute the command on the given environment.
     pub fn exec(mut self, env: &mut E) -> ExecResult<(), E::Error> {
         use Command::*;
         match self {
             Assert(term) => env.assert(&term)?,
             CheckSat => {
-                use response::CheckSat::*;
+                use CheckSatResult::*;
                 match env.check_sat()? {
                     Sat => println!("sat"),
                     Unsat => println!("unsat"),
@@ -596,17 +538,9 @@ pub trait Environment: Sized {
     type Logic;
     type Ident: Clone + PartialEq;
     type Sort: Clone + PartialEq;
-    type Function;
+    type Function: Function<Self>;
     type Error;
 
-    /// Find a sort.
-    fn sort(&self, id: &Self::Ident) -> Option<Self::Sort>;
-
-    /// Get the Bool sort, which is the only required sort.
-    fn sort_bool(&self) -> GroundSort<Self::Sort>;
-}
-
-pub trait Compiler: Environment {
     /// Find the ident for the iven syntax symbol.
     fn ident_of_symbol<F: Clone>(&self, sym: &syntax::Symbol<F>) -> Option<Self::Ident>;
 
@@ -616,19 +550,20 @@ pub trait Compiler: Environment {
     /// Find the logic with the given id.
     fn logic(&self, id: &Self::Ident) -> Option<Self::Logic>;
 
+    /// Find a sort.
+    fn sort(&self, id: &Self::Ident) -> Option<Self::Sort>;
+
+    /// Get the Bool sort, which is the only required sort.
+    fn sort_bool(&self) -> GroundSort<Self::Sort>;
+
     /// Find a function.
     fn function(&self, id: &Self::Ident) -> Option<Self::Function>;
-}
 
-pub trait Server: Environment {
     /// Assert.
     fn assert(&mut self, term: &Term<Self>) -> ExecResult<(), Self::Error>;
 
     /// Check satifiability.
-    fn check_sat(&mut self) -> ExecResult<response::CheckSat, Self::Error>;
-
-    /// Get model.
-    // fn get_model(&mut self) -> ExecResult<Model, Self::Error>;
+    fn check_sat(&mut self) -> ExecResult<CheckSatResult, Self::Error>;
 
     /// Declare a new constant.
     fn declare_const(&mut self, id: &Self::Ident, sort: &GroundSort<Self::Sort>) -> ExecResult<(), Self::Error>;
@@ -649,9 +584,14 @@ pub trait Server: Environment {
     fn set_logic(&mut self, logic: &Self::Logic) -> ExecResult<(), Self::Error>;
 }
 
-pub fn compile_term<E: Compiler, F: Clone>(env: &E, ctx: &Context<E>, term: &syntax::Term<F>) -> Result<Term<E>, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_term<E: Environment, F: Clone>(env: &E, ctx: &Context<E>, term: &syntax::Term<F>) -> Result<Term<E>, E, F> {
     let loc = term.location().clone();
     match &term.kind {
+        syntax::TermKind::Const(c) => {
+            let c = compile_const(env, &c);
+
+            Ok(Term::Const(c))
+        },
         syntax::TermKind::Ident(id) => {
             let id = compile_ident(env, &id)?;
             match ctx.find(&id) {
@@ -766,7 +706,13 @@ pub fn compile_term<E: Compiler, F: Clone>(env: &E, ctx: &Context<E>, term: &syn
     }
 }
 
-pub fn compile_binding<E: Compiler, F: Clone>(env: &E, ctx: &Context<E>, sym: &syntax::Binding<F>) -> Result<Binding<E>, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_const<E: Environment>(env: &E, c: &syntax::Constant) -> Constant {
+    match c {
+        syntax::Constant::Int(i) => Constant::Int(*i)
+    }
+}
+
+pub fn compile_binding<E: Environment, F: Clone>(env: &E, ctx: &Context<E>, sym: &syntax::Binding<F>) -> Result<Binding<E>, E, F> {
     let id = compile_symbol(env, &sym.id)?;
     let value = compile_term(env, ctx, &sym.value)?;
 
@@ -776,7 +722,7 @@ pub fn compile_binding<E: Compiler, F: Clone>(env: &E, ctx: &Context<E>, sym: &s
     })
 }
 
-pub fn compile_sorted_var<E: Compiler, F: Clone>(env: &E, var: &syntax::SortedVar<F>) -> Result<SortedVar<E>, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_sorted_var<E: Environment, F: Clone>(env: &E, var: &syntax::SortedVar<F>) -> Result<SortedVar<E>, E, F> {
     let id = compile_symbol(env, &var.id)?;
     let sort = compile_sort(env, &var.sort)?;
 
@@ -786,28 +732,28 @@ pub fn compile_sorted_var<E: Compiler, F: Clone>(env: &E, var: &syntax::SortedVa
     })
 }
 
-pub fn compile_symbol<E: Compiler, F: Clone>(env: &E, sym: &syntax::Symbol<F>) -> Result<E::Ident, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_symbol<E: Environment, F: Clone>(env: &E, sym: &syntax::Symbol<F>) -> Result<E::Ident, E, F> {
     match env.ident_of_symbol(sym) {
         Some(id) => Ok(id),
         None => Err(error::Kind::InvalidSymbol(sym.clone()).at(sym.location().clone()))
     }
 }
 
-pub fn compile_ident<E: Compiler, F: Clone>(env: &E, id: &syntax::Ident<F>) -> Result<E::Ident, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_ident<E: Environment, F: Clone>(env: &E, id: &syntax::Ident<F>) -> Result<E::Ident, E, F> {
     match env.ident(id) {
         Some(id) => Ok(id),
         None => Err(error::Kind::InvalidIdent(id.clone()).at(id.location().clone()))
     }
 }
 
-pub fn compile_function<E: Compiler, F: Clone>(env: &E, id: &E::Ident, loc: &Location<F>) -> Result<E::Function, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_function<E: Environment, F: Clone>(env: &E, id: &E::Ident, loc: &Location<F>) -> Result<E::Function, E, F> {
     match env.function(&id) {
         Some(f) => Ok(f),
         None => Err(error::Kind::UnknownFunction.at(loc.clone()))
     }
 }
 
-pub fn compile_sort<E: Compiler, F: Clone>(env: &E, sort: &syntax::Sort<F>) -> Result<GroundSort<E::Sort>, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_sort<E: Environment, F: Clone>(env: &E, sort: &syntax::Sort<F>) -> Result<GroundSort<E::Sort>, E, F> {
     let id = compile_ident(env, &sort.id)?;
     match env.sort(&id) {
         Some(s) => {
@@ -825,7 +771,7 @@ pub fn compile_sort<E: Compiler, F: Clone>(env: &E, sort: &syntax::Sort<F>) -> R
     }
 }
 
-pub fn compile_sort_declaration<E: Compiler, F: Clone>(env: &E, decl: &syntax::SortDeclaration<F>) -> Result<SortDeclaration<E>, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_sort_declaration<E: Environment, F: Clone>(env: &E, decl: &syntax::SortDeclaration<F>) -> Result<SortDeclaration<E>, E, F> {
     let id = compile_symbol(env, &decl.id)?;
     if *decl.arity >= 0 {
         let arity = *decl.arity as usize;
@@ -838,7 +784,7 @@ pub fn compile_sort_declaration<E: Compiler, F: Clone>(env: &E, decl: &syntax::S
     }
 }
 
-pub fn compile_datatype_declaration<E: Compiler, F: Clone>(env: &E, decl: &syntax::DataTypeDeclaration<F>) -> Result<UnresolvedDataTypeDeclaration<E, F>, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_datatype_declaration<E: Environment, F: Clone>(env: &E, decl: &syntax::DataTypeDeclaration<F>) -> Result<UnresolvedDataTypeDeclaration<E, F>, E, F> {
     let mut parameters = Vec::with_capacity(decl.parameters.len());
     for param in decl.parameters.iter() {
         parameters.push(compile_symbol(env, &param)?)
@@ -855,7 +801,7 @@ pub fn compile_datatype_declaration<E: Compiler, F: Clone>(env: &E, decl: &synta
     })
 }
 
-pub fn compile_constructor_declaration<E: Compiler, F: Clone>(env: &E, decl: &syntax::ConstructorDeclaration<F>, sort_parameters: &Vec<E::Ident>) -> Result<UnresolvedConstructorDeclaration<E, F>, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_constructor_declaration<E: Environment, F: Clone>(env: &E, decl: &syntax::ConstructorDeclaration<F>, sort_parameters: &Vec<E::Ident>) -> Result<UnresolvedConstructorDeclaration<E, F>, E, F> {
     let id = compile_symbol(env, &decl.id)?;
     let mut selectors = Vec::with_capacity(decl.selectors.len());
     for sel_decl in decl.selectors.iter() {
@@ -878,7 +824,7 @@ fn sort_parameter_index<I: PartialEq>(params: &Vec<I>, id: &I) -> Option<usize> 
     None
 }
 
-pub fn compile_sort_ref<E: Compiler, F: Clone>(env: &E, sort: &syntax::Sort<F>, sort_parameters: &Vec<E::Ident>) -> Result<AbstractGroundSort<Located<E::Ident, F>>, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_sort_ref<E: Environment, F: Clone>(env: &E, sort: &syntax::Sort<F>, sort_parameters: &Vec<E::Ident>) -> Result<AbstractGroundSort<Located<E::Ident, F>>, E, F> {
     let id = compile_ident(env, &sort.id)?;
 
     match sort_parameter_index(&sort_parameters, &id) {
@@ -899,7 +845,7 @@ pub fn compile_sort_ref<E: Compiler, F: Clone>(env: &E, sort: &syntax::Sort<F>, 
     }
 }
 
-pub fn compile_selector_declaration<E: Compiler, F: Clone>(env: &E, decl: &syntax::SelectorDeclaration<F>, sort_parameters: &Vec<E::Ident>) -> Result<UnresolvedSelectorDeclaration<E, F>, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile_selector_declaration<E: Environment, F: Clone>(env: &E, decl: &syntax::SelectorDeclaration<F>, sort_parameters: &Vec<E::Ident>) -> Result<UnresolvedSelectorDeclaration<E, F>, E, F> {
     let id = compile_symbol(env, &decl.id)?;
     let sort_ref = compile_sort_ref(env, &decl.sort, sort_parameters)?;
     Ok(UnresolvedSelectorDeclaration {
@@ -908,7 +854,7 @@ pub fn compile_selector_declaration<E: Compiler, F: Clone>(env: &E, decl: &synta
     })
 }
 
-pub fn compile<E: Compiler, F: Clone>(env: &E, cmd: &syntax::Command<F>) -> Result<Command<E, F>, E, F> where <E as Environment>::Function: Function<E> {
+pub fn compile<E: Environment, F: Clone>(env: &E, cmd: &syntax::Command<F>) -> Result<Command<E, F>, E, F> {
     let loc = cmd.location().clone();
     let mut ctx = Context::new();
     match &cmd.kind {

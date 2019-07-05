@@ -4,22 +4,6 @@ use super::{Location, Localisable, Located};
 use crate::PList;
 
 /**
- * Constants.
- */
-#[derive(Clone)]
-pub enum Constant {
-    Int(i64)
-}
-
-impl fmt::Display for Constant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Constant::Int(i) => write!(f, "{}", i)
-        }
-    }
-}
-
-/**
  * Symbol.
  */
 #[derive(Clone, Debug)]
@@ -181,7 +165,7 @@ impl<F: Clone> Localisable<F> for AttributeValue<F> {
 
 #[derive(Clone)]
 pub enum AttributeValueKind<F: Clone> {
-    Const(Constant),
+    // Const(Constant),
     Sym(Symbol<F>),
     List(Vec<SExpr<F>>)
 }
@@ -190,7 +174,7 @@ impl<F: Clone> fmt::Display for AttributeValueKind<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use AttributeValueKind::*;
         match self {
-            Const(c) => c.fmt(f),
+            // Const(c) => c.fmt(f),
             Sym(s) => s.fmt(f),
             List(exprs) => PList(&exprs).fmt(f)
         }
@@ -214,7 +198,7 @@ impl<F: Clone> fmt::Display for SExpr<F> {
 
 #[derive(Clone)]
 pub enum SExprKind<F: Clone> {
-    Const(Constant),
+    // Const(Constant),
     Sym(Symbol<F>),
     Keyword(Keyword<F>),
     List(Vec<SExpr<F>>)
@@ -224,7 +208,7 @@ impl<F: Clone> fmt::Display for SExprKind<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use SExprKind::*;
         match self {
-            Const(c) => c.fmt(f),
+            // Const(c) => c.fmt(f),
             Sym(s) => s.fmt(f),
             Keyword(k) => k.fmt(f),
             List(l) => PList(l).fmt(f)
@@ -284,7 +268,7 @@ impl<F: Clone> fmt::Display for Term<F> {
 
 #[derive(Clone)]
 pub enum TermKind<F: Clone> {
-    Const(Constant),
+    // Const(Constant),
     Ident(Ident<F>),
     Let {
         bindings: Vec<Binding<F>>,
@@ -308,7 +292,7 @@ impl<F: Clone> fmt::Display for TermKind<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use TermKind::*;
         match self {
-            Const(c) => c.fmt(f),
+            // Const(c) => c.fmt(f),
             Ident(id) => id.fmt(f),
             Let { bindings, body } => write!(f, "(let ({}) {})", PList(&bindings), body),
             Forall { vars, body } => write!(f, "(forall ({}) {})", PList(&vars), body),

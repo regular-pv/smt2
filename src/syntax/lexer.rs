@@ -4,13 +4,22 @@ use super::{Cursor, Location};
 use super::{utf8, token, Token, Result};
 
 pub struct Decoder<R: Iterator<Item=io::Result<u8>>> {
-	bytes: R
+	bytes: R,
+	verbose: bool
 }
 
 impl<R: Iterator<Item=io::Result<u8>>> Decoder<R> {
 	pub fn new(source: R) -> Decoder<R> {
 		Decoder {
-			bytes: source
+			bytes: source,
+			verbose: false
+		}
+	}
+
+	pub fn new_verbose(source: R) -> Decoder<R> {
+		Decoder {
+			bytes: source,
+			verbose: true
 		}
 	}
 }
@@ -20,7 +29,13 @@ impl<R: Iterator<Item=io::Result<u8>>> Iterator for Decoder<R> {
 
 	fn next(&mut self) -> Option<char> {
 		match utf8::decode(&mut self.bytes) {
-			Some(c) => Some(c.expect("invalid utf8 sequence")),
+			Some(c) => {
+				let c = c.expect("invalid utf8 sequence");
+				if self.verbose {
+					print!("{}", c);
+				}
+				Some(c)
+			},
 			None => None
 		}
 	}
@@ -135,6 +150,41 @@ impl<R: Iterator<Item=char>, F: Clone> Lexer<R, F> {
 		})
 	}
 
+	fn read_string(&mut self) -> Result<Token<F>, F> {
+		let mut string = String::new();
+
+		let mut escape = false;
+		loop {
+			if escape {
+				match self.consume() {
+					'n' => string.push('\n'),
+					c => string.push(c)
+				}
+				escape = false;
+			} else {
+				match self.consume() {
+					'\\' => {
+						escape = true;
+					},
+					'"' => {
+						break
+					},
+					c => {
+						string.push(c)
+					}
+				}
+			}
+		}
+
+		let location = self.location.clone();
+		self.location.next();
+
+		Ok(Token {
+			location: location,
+			kind: token::Kind::Litteral(token::Litteral::String(string))
+		})
+	}
+
 	fn read_numeric(&mut self, radix: u32, positive: bool) -> Result<Token<F>, F> {
 		let mut value = 0;
 		let f = radix as i64;
@@ -185,6 +235,11 @@ impl<R: Iterator<Item=char>, F: Clone> Iterator for Lexer<R, F> {
 						self.location.next();
 						Some(Ok(token::Kind::End.at(location)))
 					},
+
+					'"' => {
+						self.consume();
+						Some(self.read_string())
+					}
 
 					'-' => {
 						self.consume();

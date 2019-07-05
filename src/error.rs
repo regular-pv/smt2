@@ -1,7 +1,7 @@
 use std::result;
 use std::fmt;
 use crate::syntax;
-use crate::{Location, Localisable, GroundSort, Environment};
+use crate::{Location, Localisable, GroundSort, AbstractGroundSort, Environment};
 
 pub struct Error<E: Environment, F: Clone> {
 	pub location: Location<F>,
@@ -32,7 +32,8 @@ pub enum Kind<E: Environment, F: Clone> {
 	UndefinedVariable(E::Ident),
 	NegativeArity,
 	WrongNumberOfArguments(usize, usize, usize), // (expected_min, expected_max, given).
-	TypeMissmatch(GroundSort<E::Sort>, GroundSort<E::Sort>)
+	TypeMissmatch(AbstractGroundSort<E::Sort>, GroundSort<E::Sort>),
+	TypeAmbiguity
 }
 
 impl<E: Environment, F: Clone> Kind<E, F> {
@@ -71,7 +72,8 @@ impl<E: Environment, F: Clone> fmt::Display for Kind<E, F> where E::Sort: fmt::D
 					}
 				}
 			},
-			TypeMissmatch(expected, given) => write!(f, "expected sort `{}`, got `{}`", expected, given)
+			TypeMissmatch(expected, given) => write!(f, "expected sort `{}`, got `{}`", expected, given),
+			TypeAmbiguity => write!(f, "sort parameters are ambiguous")
 		}
     }
 }
