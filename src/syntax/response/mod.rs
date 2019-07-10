@@ -85,15 +85,25 @@ impl<F: Clone> Parsable<F> for CheckSat<F> {
     }
 }
 
-impl<F: Clone> Parsable<F> for GetModel<F> {
-    fn parse<L>(lexer: &mut Peekable<L>) -> Result<GetModel<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
+impl<F: Clone> Parsable<F> for Model<F> {
+    fn parse<L>(lexer: &mut Peekable<L>) -> Result<Model<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
         use token::Kind::*;
 
         let mut loc = consume_token(lexer, Begin)?;
         peek_server_error(lexer, &loc)?;
+
+        // this "model" keyword token does not appear in the SMT2-lib specification.
+        // however it seems to be pretty standard...
+        match peek(lexer)?.kind {
+            Ident(ref name) if name.as_str() == "model" => {
+                consume(lexer)?;
+            },
+            _ => ()
+        }
+
         let definitions = parse_list(lexer, &mut loc)?;
 
-        Ok(GetModel {
+        Ok(Model {
             location: loc,
             definitions: definitions
         })

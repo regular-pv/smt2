@@ -628,7 +628,7 @@ pub trait Server: Environment {
     fn check_sat(&mut self) -> ExecResult<response::CheckSat, Self::Error>;
 
     /// Get model.
-    // fn get_model(&mut self) -> ExecResult<Model, Self::Error>;
+    fn get_model(&mut self) -> ExecResult<response::Model<Self>, Self::Error>;
 
     /// Declare a new constant.
     fn declare_const(&mut self, id: &Self::Ident, sort: &GroundSort<Self::Sort>) -> ExecResult<(), Self::Error>;

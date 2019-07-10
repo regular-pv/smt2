@@ -12,7 +12,7 @@ pub type CheckSat<F> = Located<crate::response::CheckSat, F>;
 
 /// (get-model) command response.
 /// <get_model_response> ::= ( <model_response>* )
-pub struct GetModel<F: Clone> {
+pub struct Model<F: Clone> {
     pub location: Location<F>,
     pub definitions: Vec<Definition<F>>
 }
