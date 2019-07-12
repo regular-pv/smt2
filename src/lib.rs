@@ -36,6 +36,23 @@ impl<'a, T: 'a + fmt::Display> fmt::Display for PList<'a, T> {
     }
 }
 
+impl<'a, T: 'a + fmt::Debug> fmt::Debug for PList<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0.split_first() {
+            Some((e, list)) => {
+                e.fmt(f)?;
+                for e in list.iter() {
+                    write!(f, " ")?;
+                    e.fmt(f)?
+                }
+            },
+            None => ()
+        }
+
+        Ok(())
+    }
+}
+
 /// Evaluation context.
 /// Maps each variable to its sort.
 pub struct Context<'p, E: 'p + Environment> {
@@ -223,6 +240,16 @@ impl<T: fmt::Display> fmt::Display for GroundSort<T> {
             self.sort.fmt(f)
         } else {
             write!(f, "{} {}", self.sort, PList(&self.parameters))
+        }
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for GroundSort<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.parameters.is_empty() {
+            self.sort.fmt(f)
+        } else {
+            write!(f, "{:?} {:?}", self.sort, PList(&self.parameters))
         }
     }
 }
