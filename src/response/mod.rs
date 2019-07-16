@@ -1,5 +1,6 @@
 use crate::{
     Result,
+    error,
     Environment,
     Compiler,
     Term,
@@ -36,7 +37,7 @@ pub struct Definition<E: Environment> {
 
 /// Function declaration.
 pub struct Declaration<E: Environment> {
-    pub id: E::Ident,
+    pub f: E::Function,
     pub args: Vec<SortedVar<E>>,
     pub return_sort: GroundSort<E::Sort>
 }
@@ -79,6 +80,7 @@ pub fn compile_definition<E: Compiler, F: Clone>(env: &E, ast: &syntax::Definiti
 
 pub fn compile_declaration<E: Compiler, F: Clone>(env: &E, ast: &syntax::Declaration<F>) -> Result<Declaration<E>, E, F> where E::Function: Function<E> {
     let id = compile_symbol(env, &ast.id)?;
+    let f = env.function(&id).ok_or(error::Kind::UnknownFunction.at(ast.location.clone()))?;
 
     let mut compiled_args = Vec::with_capacity(ast.args.len());
     for a in ast.args.iter() {
@@ -88,7 +90,7 @@ pub fn compile_declaration<E: Compiler, F: Clone>(env: &E, ast: &syntax::Declara
     let return_sort = compile_sort(env, &ast.return_sort)?;
 
     Ok(Declaration {
-        id: id,
+        f: f,
         args: compiled_args,
         return_sort: return_sort
     })

@@ -3,7 +3,8 @@ pub use crate::syntax::{
     Symbol,
     Term,
     SortedVar,
-    Sort
+    Sort,
+    SortDeclaration
 };
 
 /// (check-sat) command response.
@@ -14,6 +15,7 @@ pub type CheckSat<F> = Located<crate::response::CheckSat, F>;
 /// <get_model_response> ::= ( <model_response>* )
 pub struct Model<F: Clone> {
     pub location: Location<F>,
+    pub sorts: Vec<SortDeclaration<F>>,
     pub definitions: Vec<Definition<F>>
 }
 

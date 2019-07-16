@@ -1,3 +1,5 @@
+#![feature(trait_alias)]
+
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
@@ -219,7 +221,7 @@ impl<E: Environment> fmt::Display for SortedVar<E> where E::Ident: fmt::Display,
 }
 
 /// A ground sort is a sort fully applied (arity 0).
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub struct GroundSort<T> {
     pub sort: T,
     pub parameters: Vec<GroundSort<T>>

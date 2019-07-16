@@ -10,7 +10,8 @@ use crate::syntax::{
     peek,
     consume,
     consume_token,
-    parse_list
+    parse_list,
+    parse_numeral
 };
 
 mod ast;
@@ -92,29 +93,75 @@ impl<F: Clone> Parsable<F> for Model<F> {
         let mut loc = consume_token(lexer, Begin)?;
         peek_server_error(lexer, &loc)?;
 
-        // this "model" keyword token does not appear in the SMT2-lib specification.
-        // however it seems to be pretty standard...
+        let mut definitions;
+        let mut sorts = Vec::new();
+
         match peek(lexer)?.kind {
+            // this "model" keyword token does not appear in the SMT2-lib specification.
+            // however it seems to be pretty standard... In this case we can also have sorts
+            // declarations in the model.
             Ident(ref name) if name.as_str() == "model" => {
                 consume(lexer)?;
-            },
-            _ => ()
-        }
+                definitions = Vec::new();
+                loop {
+                    let token = consume(lexer)?;
+                    let item_loc = token.location().clone();
+                    match token.kind {
+                        Begin => {
+                            let token = peek(lexer)?;
+                            let id_loc = token.location().clone();
+                            match token.kind {
+                                Ident(ref name) => {
+                                    match name.as_ref() {
+                                        "define-fun" | "define-fun-rec" | "define-funs-rec" => {
+                                            let def = Definition::parse_at(lexer, item_loc)?;
+                                            definitions.push(def);
+                                        },
+                                        "declare-sort" => {
+                                            consume(lexer)?;
+                                            let id = Symbol::parse(lexer)?;
+                                            let arity = parse_numeral(lexer)?;
 
-        let definitions = parse_list(lexer, &mut loc)?;
+                                            let decl_loc = item_loc.union(&consume_token(lexer, End)?);
+
+                                            let decl = SortDeclaration {
+                                                location: decl_loc,
+                                                id: id,
+                                                arity: arity
+                                            };
+
+                                            sorts.push(decl);
+                                        },
+                                        unexpected => return Err(error::Kind::UnexpectedToken(Ident(unexpected.to_string()), None).at(id_loc))
+                                    }
+                                },
+                                unexpected => return Err(error::Kind::UnexpectedToken(unexpected, None).at(id_loc))
+                            }
+                        },
+                        End => {
+                            break
+                        },
+                        unexpected => return Err(error::Kind::UnexpectedToken(unexpected, None).at(item_loc))
+                    }
+                }
+            },
+            _ => {
+                definitions = parse_list(lexer, &mut loc)?;
+            }
+        }
 
         Ok(Model {
             location: loc,
+            sorts: sorts,
             definitions: definitions
         })
     }
 }
 
-impl<F: Clone> Parsable<F> for Definition<F> {
-    fn parse<L>(lexer: &mut Peekable<L>) -> Result<Definition<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
+impl<F: Clone> Definition<F> {
+    fn parse_at<L>(lexer: &mut Peekable<L>, mut loc: Location<F>) -> Result<Definition<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
         use token::Kind::*;
 
-        let mut loc = consume_token(lexer, Begin)?;
         let token = consume(lexer)?;
         let id_loc = token.location().clone();
 
@@ -170,6 +217,10 @@ impl<F: Clone> Parsable<F> for Definition<F> {
                         consume_token(lexer, Begin)?;
                         bodies = parse_list(lexer, &mut loc)?;
                     },
+                    // "declare-sort" => {
+                    //     let id = Symbol::parse(lexer)?;
+                    //     let arity = parse_numeral(lexer)?;
+                    // },
                     unexpected => return Err(error::Kind::UnexpectedToken(Ident(unexpected.to_string()), None).at(id_loc))
                 }
             },
@@ -184,6 +235,15 @@ impl<F: Clone> Parsable<F> for Definition<F> {
             declarations: declarations,
             bodies: bodies
         })
+    }
+}
+
+impl<F: Clone> Parsable<F> for Definition<F> {
+    fn parse<L>(lexer: &mut Peekable<L>) -> Result<Definition<F>, F> where L: Iterator<Item=Result<Token<F>, F>> {
+        use token::Kind::*;
+
+        let mut loc = consume_token(lexer, Begin)?;
+        Self::parse_at(lexer, loc)
     }
 }
 
