@@ -1,21 +1,22 @@
 use super::*;
 
-pub enum Error<L, S: Sort, F: Function> {
+pub enum Error<L, C: Clone + PartialEq, S: Sort, F: Function> {
     IO(std::io::Error),
     Server(String),
     Syntax(syntax::Error<u32>),
-    Compile(crate::error::Error<Client<L, S, F>, u32>),
-    UnknownSort
+    Compile(crate::error::Error<Client<L, C, S, F>, u32>),
+    UnknownSort,
+    UnknownFunction
 }
 
-impl<L, S: Sort, F: Function> From<std::io::Error> for Error<L, S, F> {
-    fn from(e: std::io::Error) -> Error<L, S, F> {
+impl<L, C: Clone + PartialEq, S: Sort, F: Function> From<std::io::Error> for Error<L, C, S, F> {
+    fn from(e: std::io::Error) -> Error<L, C, S, F> {
         Error::IO(e)
     }
 }
 
-impl<L, S: Sort, F: Function> From<syntax::Error<u32>> for Error<L, S, F> {
-    fn from(e: syntax::Error<u32>) -> Error<L, S, F> {
+impl<L, C: Clone + PartialEq, S: Sort, F: Function> From<syntax::Error<u32>> for Error<L, C, S, F> {
+    fn from(e: syntax::Error<u32>) -> Error<L, C, S, F> {
         if let syntax::error::Kind::Server(message) = e.kind {
             Error::Server(message)
         } else {
@@ -24,33 +25,34 @@ impl<L, S: Sort, F: Function> From<syntax::Error<u32>> for Error<L, S, F> {
     }
 }
 
-impl<L: fmt::Display, S: Sort + fmt::Display, F: Function + fmt::Display> fmt::Display for Error<L, S, F> {
+impl<L: fmt::Display, C: Clone + PartialEq, S: Sort + fmt::Display, F: Function + fmt::Display> fmt::Display for Error<L, C, S, F> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::IO(e) => write!(f, "IO: {}", e),
             Error::Server(msg) => write!(f, "solver reponded with an error: {}", msg),
             Error::Syntax(e) =>  write!(f, "syntax error in the solver response: {}", e),
             Error::Compile(e) => write!(f, "unable to compile the solver response: {}", e),
-            Error::UnknownSort => write!(f, "unknown sort")
+            Error::UnknownSort => write!(f, "unknown sort"),
+            Error::UnknownFunction => write!(f, "unknown function")
         }
     }
 }
 
-pub enum InternalError<L, F: Function> {
+pub enum InternalError<L, C: Clone + PartialEq, F: Function> {
     IO(std::io::Error),
     Server(String),
     Syntax(syntax::Error<u32>),
-    Compile(crate::error::Error<Internal<L, F>, u32>)
+    Compile(crate::error::Error<Internal<L, C, F>, u32>)
 }
 
-impl<L, F: Function> From<std::io::Error> for InternalError<L, F> {
-    fn from(e: std::io::Error) -> InternalError<L, F> {
+impl<L, C: Clone + PartialEq, F: Function> From<std::io::Error> for InternalError<L, C, F> {
+    fn from(e: std::io::Error) -> InternalError<L, C, F> {
         InternalError::IO(e)
     }
 }
 
-impl<L, F: Function> From<syntax::Error<u32>> for InternalError<L, F> {
-    fn from(e: syntax::Error<u32>) -> InternalError<L, F> {
+impl<L, C: Clone + PartialEq, F: Function> From<syntax::Error<u32>> for InternalError<L, C, F> {
+    fn from(e: syntax::Error<u32>) -> InternalError<L, C, F> {
         if let syntax::error::Kind::Server(message) = e.kind {
             InternalError::Server(message)
         } else {
@@ -59,8 +61,8 @@ impl<L, F: Function> From<syntax::Error<u32>> for InternalError<L, F> {
     }
 }
 
-impl<L, F: Function> From<crate::error::Error<Internal<L, F>, u32>> for InternalError<L, F> {
-    fn from(e: crate::error::Error<Internal<L, F>, u32>) -> InternalError<L, F> {
+impl<L, C: Clone + PartialEq, F: Function> From<crate::error::Error<Internal<L, C, F>, u32>> for InternalError<L, C, F> {
+    fn from(e: crate::error::Error<Internal<L, C, F>, u32>) -> InternalError<L, C, F> {
         InternalError::Compile(e)
     }
 }

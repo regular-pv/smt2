@@ -113,15 +113,9 @@ impl<'p, E: 'p + Environment> Context<'p, E> {
     }
 }
 
-/**
- * Constant.
- */
-pub enum Constant {
-    Int(i64)
-}
-
 /// A term.
 pub enum Term<E: Environment> {
+    Const(E::Constant),
     Var {
         /// unique identified in the current variable environment.
         index: usize,
@@ -160,6 +154,7 @@ impl<E: Environment> Term<E> {
     pub fn sort(&self, env: &E, ctx: &Context<E>) -> GroundSort<E::Sort> {
         use Term::*;
         match self {
+            Const(c) => env.const_sort(c),
             Var { index, .. } => ctx.sort(*index).clone(),
             Let { body, .. } => {
                 body.sort(env, ctx)
@@ -171,10 +166,11 @@ impl<E: Environment> Term<E> {
     }
 }
 
-impl<E: Environment> fmt::Display for Term<E> where E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+impl<E: Environment> fmt::Display for Term<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use Term::*;
         match self {
+            Const(c) => write!(f, "{}", c),
             Var { id, .. } => write!(f, "{}", id),
             Let { bindings, body } => {
                 write!(f, "(let ({}) {})", PList(bindings), body)
@@ -202,7 +198,7 @@ pub struct Binding<E: Environment> {
     pub value: Box<Term<E>>
 }
 
-impl<E: Environment> fmt::Display for Binding<E> where E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+impl<E: Environment> fmt::Display for Binding<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({} {})", self.id, self.value)
     }
@@ -214,7 +210,7 @@ pub struct SortedVar<E: Environment> {
     pub sort: GroundSort<E::Sort>
 }
 
-impl<E: Environment> fmt::Display for SortedVar<E> where E::Ident: fmt::Display, E::Sort: fmt::Display {
+impl<E: Environment> fmt::Display for SortedVar<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Sort: fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({} {})", self.id, self.sort)
     }
@@ -316,6 +312,30 @@ impl<T: Clone + PartialEq> AbstractGroundSort<T> {
                         Ok(())
                     }
                 }
+            }
+        }
+    }
+
+    /// Try to instanciate the abstract ground sort with the given parameters.
+    pub fn instanciate(&self, context: &[GroundSort<T>]) -> std::result::Result<GroundSort<T>, ()> {
+        match self {
+            AbstractGroundSort::Param(i) => {
+                if let Some(sort) = context.get(*i) {
+                    Ok(sort.clone())
+                } else {
+                    Err(())
+                }
+            },
+            AbstractGroundSort::Sort { sort, parameters } => {
+                let mut instanciated_parameters = Vec::with_capacity(parameters.len());
+                for p in parameters {
+                    instanciated_parameters.push(p.instanciate(context)?);
+                }
+
+                Ok(GroundSort {
+                    sort: sort.clone(),
+                    parameters: instanciated_parameters
+                })
             }
         }
     }
@@ -623,6 +643,7 @@ pub trait Function<E: Environment> {
 /// SMT2-lib solver environment.
 pub trait Environment: Sized {
     type Logic;
+    type Constant: Clone + PartialEq;
     type Ident: Clone + PartialEq;
     type Sort: Clone + PartialEq;
     type Function;
@@ -633,6 +654,9 @@ pub trait Environment: Sized {
 
     /// Get the Bool sort, which is the only required sort.
     fn sort_bool(&self) -> GroundSort<Self::Sort>;
+
+    /// Get the sort of the given constant.
+    fn const_sort(&self, cst: &Self::Constant) -> GroundSort<Self::Sort>;
 }
 
 pub trait Compiler: Environment {

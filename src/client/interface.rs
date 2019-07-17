@@ -16,10 +16,11 @@
 use super::*;
 use super::error::InternalError;
 
-impl<L, S: Sort, F: Function> Client<L, S, F> {
-    pub(crate) fn downgrade_term(&self, term: &Term<Self>) -> ExecResult<Term<Internal<L, F>>, Error<L, S, F>> {
+impl<L, C: Clone + PartialEq, S: Sort, F: Function> Client<L, C, S, F> {
+    pub(crate) fn downgrade_term(&self, term: &Term<Self>) -> ExecResult<Term<Internal<L, C, F>>, Error<L, C, S, F>> {
         use Term::*;
         match term {
+            Const(c) => Ok(Const(c.clone())),
             Var { index, id } => Ok(Var { index: *index, id: id.clone() }),
             Let { bindings, body } => {
                 let mut internal_bindings = Vec::with_capacity(bindings.len());
@@ -65,19 +66,23 @@ impl<L, S: Sort, F: Function> Client<L, S, F> {
         }
     }
 
-    pub(crate) fn downgrade_binding(&self, binding: &Binding<Self>) -> ExecResult<Binding<Internal<L, F>>, Error<L, S, F>> {
+    pub(crate) fn downgrade_binding(&self, binding: &Binding<Self>) -> ExecResult<Binding<Internal<L, C, F>>, Error<L, C, S, F>> {
         panic!("TODO")
     }
 
-    pub(crate) fn downgrade_sorted_var(&self, x: &SortedVar<Self>) -> ExecResult<SortedVar<Internal<L, F>>, Error<L, S, F>> {
+    pub(crate) fn downgrade_sorted_var(&self, x: &SortedVar<Self>) -> ExecResult<SortedVar<Internal<L, C, F>>, Error<L, C, S, F>> {
         panic!("TODO")
     }
 
-    pub(crate) fn downgrade_function(&self, f: &F) -> ExecResult<InternalFunction<F>, Error<L, S, F>> {
-        panic!("TODO")
+    pub(crate) fn downgrade_function(&self, f: &F) -> ExecResult<InternalFunction<F>, Error<L, C, S, F>> {
+        if let Some(internal_f) = self.internal.functions_ids.get(f) {
+            Ok(internal_f.clone())
+        } else {
+            Err(Error::UnknownFunction)
+        }
     }
 
-    pub(crate) fn downgrade_signature(&self, sig: FunctionSignature<S>) -> ExecResult<InternalFunctionSignature, Error<L, S, F>> {
+    pub(crate) fn downgrade_signature(&self, sig: FunctionSignature<S>) -> ExecResult<InternalFunctionSignature, Error<L, C, S, F>> {
         match sig {
             FunctionSignature::User { args, return_sort } => {
                 let mut d_args = Vec::with_capacity(args.len());
@@ -98,7 +103,7 @@ impl<L, S: Sort, F: Function> Client<L, S, F> {
         }
     }
 
-    pub(crate) fn downgrade_sort(&self, sort: &S) -> ExecResult<Ident, Error<L, S, F>> {
+    pub(crate) fn downgrade_sort(&self, sort: &S) -> ExecResult<Ident, Error<L, C, S, F>> {
         if let Some(id) = self.sorts_ids.get(sort) {
             Ok(id.clone())
         } else {
@@ -106,7 +111,7 @@ impl<L, S: Sort, F: Function> Client<L, S, F> {
         }
     }
 
-    pub(crate) fn downgrade_ground_sort(&self, sort: &GroundSort<S>) -> ExecResult<GroundSort<Ident>, Error<L, S, F>> {
+    pub(crate) fn downgrade_ground_sort(&self, sort: &GroundSort<S>) -> ExecResult<GroundSort<Ident>, Error<L, C, S, F>> {
         let mut parameters = Vec::with_capacity(sort.parameters.len());
         for p in &sort.parameters {
             parameters.push(self.downgrade_ground_sort(p)?);
@@ -118,16 +123,17 @@ impl<L, S: Sort, F: Function> Client<L, S, F> {
         })
     }
 
-    pub(crate) fn downgrade_sort_declaration(&self, decl: &SortDeclaration<Self>) -> ExecResult<SortDeclaration<Internal<L, F>>, Error<L, S, F>> {
+    pub(crate) fn downgrade_sort_declaration(&self, decl: &SortDeclaration<Self>) -> ExecResult<SortDeclaration<Internal<L, C, F>>, Error<L, C, S, F>> {
         Ok(SortDeclaration {
             id: decl.id.clone(),
             arity: decl.arity
         })
     }
 
-    pub(crate) fn upgrade_term(&self, term: &Term<Internal<L, F>>) -> ExecResult<Term<Self>, Error<L, S, F>> {
+    pub(crate) fn upgrade_term(&self, term: &Term<Internal<L, C, F>>) -> ExecResult<Term<Self>, Error<L, C, S, F>> {
         use Term::*;
         match term {
+            Const(c) => Ok(Const(c.clone())),
             Var { index, id } => Ok(Var { index: *index, id: id.clone() }),
             Let { bindings, body } => {
                 let mut internal_bindings = Vec::with_capacity(bindings.len());
@@ -173,22 +179,22 @@ impl<L, S: Sort, F: Function> Client<L, S, F> {
         }
     }
 
-    pub(crate) fn upgrade_binding(&self, binding: &Binding<Internal<L, F>>) -> ExecResult<Binding<Self>, Error<L, S, F>> {
+    pub(crate) fn upgrade_binding(&self, binding: &Binding<Internal<L, C, F>>) -> ExecResult<Binding<Self>, Error<L, C, S, F>> {
         panic!("TODO")
     }
 
-    pub(crate) fn upgrade_sorted_var(&self, x: &SortedVar<Internal<L, F>>) -> ExecResult<SortedVar<Self>, Error<L, S, F>> {
+    pub(crate) fn upgrade_sorted_var(&self, x: &SortedVar<Internal<L, C, F>>) -> ExecResult<SortedVar<Self>, Error<L, C, S, F>> {
         Ok(SortedVar {
             id: x.id.clone(),
             sort: self.upgrade_ground_sort(&x.sort)?
         })
     }
 
-    pub(crate) fn upgrade_function(&self, f: &InternalFunction<F>) -> ExecResult<F, Error<L, S, F>> {
+    pub(crate) fn upgrade_function(&self, f: &InternalFunction<F>) -> ExecResult<F, Error<L, C, S, F>> {
         Ok(f.f.clone())
     }
 
-    pub(crate) fn upgrade_sort(&self, sort: &Ident) -> ExecResult<S, Error<L, S, F>> {
+    pub(crate) fn upgrade_sort(&self, sort: &Ident) -> ExecResult<S, Error<L, C, S, F>> {
         if let Some(sort) = self.ids_sorts.get(sort) {
             Ok(sort.clone())
         } else {
@@ -197,11 +203,11 @@ impl<L, S: Sort, F: Function> Client<L, S, F> {
         }
     }
 
-    pub(crate) fn upgrade_abstract_sort(&self, sort: &AbstractGroundSort<Ident>) -> ExecResult<AbstractGroundSort<S>, Error<L, S, F>> {
+    pub(crate) fn upgrade_abstract_sort(&self, sort: &AbstractGroundSort<Ident>) -> ExecResult<AbstractGroundSort<S>, Error<L, C, S, F>> {
         panic!("TODO")
     }
 
-    pub(crate) fn upgrade_ground_sort(&self, sort: &GroundSort<Ident>) -> ExecResult<GroundSort<S>, Error<L, S, F>> {
+    pub(crate) fn upgrade_ground_sort(&self, sort: &GroundSort<Ident>) -> ExecResult<GroundSort<S>, Error<L, C, S, F>> {
         let mut parameters = Vec::with_capacity(sort.parameters.len());
         for p in &sort.parameters {
             parameters.push(self.upgrade_ground_sort(p)?);
@@ -213,7 +219,7 @@ impl<L, S: Sort, F: Function> Client<L, S, F> {
         })
     }
 
-    pub(crate) fn upgrade_model(&self, model: &response::Model<Internal<L, F>>) -> ExecResult<response::Model<Self>, Error<L, S, F>> {
+    pub(crate) fn upgrade_model(&self, model: &response::Model<Internal<L, C, F>>) -> ExecResult<response::Model<Self>, Error<L, C, S, F>> {
         let mut definitions = Vec::with_capacity(model.definitions.len());
         for def in model.definitions.iter() {
             definitions.push(self.upgrade_definition(def)?);
@@ -224,7 +230,7 @@ impl<L, S: Sort, F: Function> Client<L, S, F> {
         })
     }
 
-    pub(crate) fn upgrade_definition(&self, def: &response::Definition<Internal<L, F>>) -> ExecResult<response::Definition<Self>, Error<L, S, F>> {
+    pub(crate) fn upgrade_definition(&self, def: &response::Definition<Internal<L, C, F>>) -> ExecResult<response::Definition<Self>, Error<L, C, S, F>> {
         let mut declarations = Vec::with_capacity(def.declarations.len());
         let mut bodies = Vec::with_capacity(def.bodies.len());
 
@@ -243,7 +249,7 @@ impl<L, S: Sort, F: Function> Client<L, S, F> {
         })
     }
 
-    pub(crate) fn upgrade_declaration(&self, decl: &response::Declaration<Internal<L, F>>) -> ExecResult<response::Declaration<Self>, Error<L, S, F>> {
+    pub(crate) fn upgrade_declaration(&self, decl: &response::Declaration<Internal<L, C, F>>) -> ExecResult<response::Declaration<Self>, Error<L, C, S, F>> {
         let f = self.upgrade_function(&decl.f)?;
 
         let mut args = Vec::with_capacity(decl.args.len());
@@ -260,7 +266,7 @@ impl<L, S: Sort, F: Function> Client<L, S, F> {
         })
     }
 
-    pub(crate) fn upgrade_result<T>(&self, r: ExecResult<T, InternalError<L, F>>) -> ExecResult<T, Error<L, S, F>> {
+    pub(crate) fn upgrade_result<T>(&self, r: ExecResult<T, InternalError<L, C, F>>) -> ExecResult<T, Error<L, C, S, F>> {
         match r {
             Ok(t) => Ok(t),
             Err(e) => {

@@ -40,8 +40,8 @@ pub enum FunctionSignature<S> {
 }
 
 /// SMT2-lib solver environment.
-pub struct Client<L, S: Sort, F: Function> {
-    internal: Internal<L, F>,
+pub struct Client<L, C: Clone + PartialEq, S: Sort, F: Function> {
+    internal: Internal<L, C, F>,
     sort_bool: GroundSort<S>,
     sorts_ids: HashMap<S, Ident>,
     ids_sorts: HashMap<Ident, S>,
@@ -49,12 +49,13 @@ pub struct Client<L, S: Sort, F: Function> {
     l: PhantomData<L>,
 }
 
-impl<L, S: Sort, F: Clone + Eq + Hash> Environment for Client<L, S, F> {
+impl<L, C: Clone + PartialEq, S: Sort, F: Clone + Eq + Hash> Environment for Client<L, C, S, F> {
     type Logic = L;
     type Ident = Ident;
+    type Constant = C;
     type Sort = S;
     type Function = F;
-    type Error = Error<L, S, F>;
+    type Error = Error<L, C, S, F>;
 
     /// Find a sort.
     fn sort(&self, id: &Ident) -> Option<S> {
@@ -71,11 +72,15 @@ impl<L, S: Sort, F: Clone + Eq + Hash> Environment for Client<L, S, F> {
     fn sort_bool(&self) -> GroundSort<S> {
         self.sort_bool.clone()
     }
+
+    fn const_sort(&self, cst: &C) -> GroundSort<S> {
+        panic!("TODO const_sort")
+    }
 }
 
-impl<L, S: Sort, F: Clone + Eq + Hash> Client<L, S, F>
-where L: fmt::Display {
-    pub fn new(mut cmd: process::Command, sort_bool: S, cst_true: F, cst_false: F) -> std::io::Result<Client<L, S, F>> {
+impl<L, C: Clone + PartialEq, S: Sort, F: Clone + Eq + Hash> Client<L, C, S, F>
+where L: fmt::Display, C: fmt::Display {
+    pub fn new(mut cmd: process::Command, sort_bool: S, cst_true: F, cst_false: F) -> std::io::Result<Client<L, C, S, F>> {
         let server = cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
 
         let ident_bool = Ident::raw("Bool");
@@ -93,6 +98,7 @@ where L: fmt::Display {
             functions_ids: HashMap::new(),
             ids_functions: HashMap::new(),
             l: PhantomData,
+            c: PhantomData
         };
 
         let mut client = Client {
@@ -123,32 +129,35 @@ where L: fmt::Display {
     }
 
     /// Assert.
-    pub fn assert(&mut self, term: &Term<Self>) -> ExecResult<(), Error<L, S, F>> {
+    pub fn assert(&mut self, term: &Term<Self>) -> ExecResult<(), Error<L, C, S, F>> {
         let term = self.downgrade_term(term)?;
         let r = self.internal.assert(&term);
         self.upgrade_result(r)
     }
 
     /// Check satifiability.
-    pub fn check_sat(&mut self) -> ExecResult<response::CheckSat, Error<L, S, F>> {
+    pub fn check_sat(&mut self) -> ExecResult<response::CheckSat, Error<L, C, S, F>> {
         let r = self.internal.check_sat();
         self.upgrade_result(r)
     }
 
     /// Declare a new constant.
-    pub fn declare_const(&mut self, cst: F, sort: &GroundSort<S>) -> ExecResult<(), Error<L, S, F>> {
+    pub fn declare_const(&mut self, cst: F, sort: &GroundSort<S>) -> ExecResult<(), Error<L, C, S, F>> {
         let id = self.new_id();
+        let dsort = self.downgrade_ground_sort(sort)?;
         let sig = InternalFunctionSignature::User {
             args: Vec::new(),
-            return_sort: self.downgrade_ground_sort(sort)?
+            return_sort: dsort.clone()
         };
-        self.internal.functions_ids.insert(cst.clone(), id.clone());
-        self.internal.ids_functions.insert(id.clone(), InternalFunction::new(id, cst, sig));
-        panic!("TODO declare_const")
+        let internal_f = InternalFunction::new(id.clone(), cst.clone(), sig);
+        self.internal.functions_ids.insert(cst, internal_f.clone());
+        self.internal.ids_functions.insert(id.clone(), internal_f);
+        let r = self.internal.declare_const(&id, &dsort);
+        self.upgrade_result(r)
     }
 
     /// Declare new sort.
-    pub fn declare_sort(&mut self, sort: S) -> ExecResult<(), Error<L, S, F>> {
+    pub fn declare_sort(&mut self, sort: S) -> ExecResult<(), Error<L, C, S, F>> {
         let id = self.new_sort_id();
         self.sorts_ids.insert(sort.clone(), id.clone());
         self.ids_sorts.insert(id.clone(), sort.clone());
@@ -161,16 +170,17 @@ where L: fmt::Display {
     }
 
     /// Set the function object for the given predefined function.
-    pub fn predefined_fun<Id: ToString>(&mut self, id: Id, function: F, sig: FunctionSignature<S>) -> ExecResult<(), Error<L, S, F>> {
+    pub fn predefined_fun<Id: ToString>(&mut self, id: Id, function: F, sig: FunctionSignature<S>) -> ExecResult<(), Error<L, C, S, F>> {
         let id = Ident::Raw(id.to_string());
         let sig = self.downgrade_signature(sig)?;
-        self.internal.functions_ids.insert(function.clone(), id.clone());
-        self.internal.ids_functions.insert(id.clone(), InternalFunction::new(id, function, sig));
+        let internal_f = InternalFunction::new(id.clone(), function.clone(), sig);
+        self.internal.functions_ids.insert(function, internal_f.clone());
+        self.internal.ids_functions.insert(id, internal_f);
         Ok(())
     }
 
     /// Declare new function.
-    pub fn declare_fun(&mut self, function: F, args: &Vec<GroundSort<S>>, return_sort: &GroundSort<S>) -> ExecResult<(), Error<L, S, F>> {
+    pub fn declare_fun(&mut self, function: F, args: &Vec<GroundSort<S>>, return_sort: &GroundSort<S>) -> ExecResult<(), Error<L, C, S, F>> {
         let id = self.new_id();
         let sig = FunctionSignature::User {
             args: args.clone(),
@@ -178,8 +188,9 @@ where L: fmt::Display {
         };
         let sig = self.downgrade_signature(sig)?;
 
-        self.internal.functions_ids.insert(function.clone(), id.clone());
-        self.internal.ids_functions.insert(id.clone(), InternalFunction::new(id.clone(), function, sig));
+        let internal_f = InternalFunction::new(id.clone(), function.clone(), sig);
+        self.internal.functions_ids.insert(function, internal_f.clone());
+        self.internal.ids_functions.insert(id.clone(), internal_f);
 
         let mut dargs = Vec::with_capacity(args.len());
         for a in args {
@@ -191,24 +202,24 @@ where L: fmt::Display {
     }
 
     /// Define previously declared sort.
-    pub fn define_sort(&mut self, def: &DataTypeDeclaration<Self>) -> ExecResult<(), Error<L, S, F>> {
+    pub fn define_sort(&mut self, def: &DataTypeDeclaration<Self>) -> ExecResult<(), Error<L, C, S, F>> {
         let id = self.new_sort_id();
         panic!("TODO define_sort")
     }
 
     /// Exit the solver.
-    pub fn exit(&mut self) -> ExecResult<(), Error<L, S, F>> {
+    pub fn exit(&mut self) -> ExecResult<(), Error<L, C, S, F>> {
         let r = self.internal.exit();
         self.upgrade_result(r)
     }
 
-    pub fn get_model(&mut self) -> ExecResult<response::Model<Self>, Error<L, S, F>> {
+    pub fn get_model(&mut self) -> ExecResult<response::Model<Self>, Error<L, C, S, F>> {
         let model = self.internal.get_model();
         self.upgrade_model(&self.upgrade_result(model)?)
     }
 
     /// Set the solver's logic.
-    pub fn set_logic(&mut self, logic: &L) -> ExecResult<(), Error<L, S, F>> {
+    pub fn set_logic(&mut self, logic: &L) -> ExecResult<(), Error<L, C, S, F>> {
         let r = self.internal.set_logic(logic);
         self.upgrade_result(r)
     }

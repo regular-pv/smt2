@@ -3,15 +3,16 @@ use std::rc::Rc;
 use super::*;
 use super::error::InternalError;
 
-pub struct Internal<L, F: Function> {
+pub struct Internal<L, C: Clone + PartialEq, F: Function> {
     pub sort_bool: GroundSort<Ident>,
     pub server: process::Child,
-    pub functions_ids: HashMap<F, Ident>,
+    pub functions_ids: HashMap<F, InternalFunction<F>>,
     pub ids_functions: HashMap<Ident, InternalFunction<F>>,
-    pub l: PhantomData<L>
+    pub l: PhantomData<L>,
+    pub c: PhantomData<C>
 }
 
-impl<L, F: Function> Internal<L, F> {
+impl<L, C: Clone + PartialEq, F: Function> Internal<L, C, F> {
     fn lexer(&mut self) -> Peekable<Lexer<Decoder<std::io::Bytes<&mut std::process::ChildStdout>>, u32>> {
         let id = self.server.id();
         // Lexer::new(Decoder::new(self.server.stdout.as_mut().unwrap().by_ref().bytes()), id, Cursor::default()).peekable()
@@ -19,12 +20,13 @@ impl<L, F: Function> Internal<L, F> {
     }
 }
 
-impl<L, F: Function> Environment for Internal<L, F> {
+impl<L, C: Clone + PartialEq, F: Function> Environment for Internal<L, C, F> {
     type Logic = L;
     type Ident = Ident;
+    type Constant = C;
     type Sort = Ident;
     type Function = InternalFunction<F>;
-    type Error = InternalError<L, F>;
+    type Error = InternalError<L, C, F>;
 
     /// Find a sort.
     fn sort(&self, id: &Ident) -> Option<Ident> {
@@ -35,10 +37,14 @@ impl<L, F: Function> Environment for Internal<L, F> {
     fn sort_bool(&self) -> GroundSort<Ident> {
         self.sort_bool.clone()
     }
+
+    fn const_sort(&self, cst: &C) -> GroundSort<Ident> {
+        panic!("TODO const_sort")
+    }
 }
 
-impl<L, F: Function> Server for Internal<L, F>
-where L: fmt::Display {
+impl<L, C: Clone + PartialEq, F: Function> Server for Internal<L, C, F>
+where L: fmt::Display, C: fmt::Display {
     /// Assert.
     fn assert(&mut self, term: &Term<Self>) -> ExecResult<(), Self::Error> {
         write!(self.server.stdin.as_mut().unwrap(), "(assert {})\n", term)?;
@@ -54,7 +60,8 @@ where L: fmt::Display {
 
     /// Declare a new constant.
     fn declare_const(&mut self, id: &Self::Ident, sort: &GroundSort<Self::Sort>) -> ExecResult<(), Self::Error> {
-        panic!("TODO declare_const")
+        write!(self.server.stdin.as_mut().unwrap(), "(declare-const {} {})\n", id, sort)?;
+        Ok(())
     }
 
     /// Declare new sort.
@@ -100,7 +107,7 @@ where L: fmt::Display {
     }
 }
 
-impl<L, F: Function> Compiler for Internal<L, F> {
+impl<L, C: Clone + PartialEq, F: Function> Compiler for Internal<L, C, F> {
     /// Find the ident for the iven syntax symbol.
     fn ident_of_symbol<File: Clone>(&self, sym: &syntax::Symbol<File>) -> Option<Ident> {
         Some(Ident::from_syntax(sym))
@@ -162,8 +169,8 @@ impl<F: Function> fmt::Display for InternalFunction<F> {
     }
 }
 
-impl<L, F: Function> crate::Function<Internal<L, F>> for InternalFunction<F> {
-    fn arity(&self, _env: &Internal<L, F>) -> (usize, usize) {
+impl<L, C: Clone + PartialEq, F: Function> crate::Function<Internal<L, C, F>> for InternalFunction<F> {
+    fn arity(&self, _env: &Internal<L, C, F>) -> (usize, usize) {
         // (self.args.len(), self.args.len())
         use self::InternalFunctionSignature::*;
         match &*self.sig {
@@ -174,7 +181,7 @@ impl<L, F: Function> crate::Function<Internal<L, F>> for InternalFunction<F> {
         }
     }
 
-    fn typecheck(&self, env: &Internal<L, F>, input: &[GroundSort<Ident>]) -> std::result::Result<GroundSort<Ident>, TypeCheckError<Ident>> {
+    fn typecheck(&self, env: &Internal<L, C, F>, input: &[GroundSort<Ident>]) -> std::result::Result<GroundSort<Ident>, TypeCheckError<Ident>> {
         use self::InternalFunctionSignature::*;
         match &*self.sig {
             User { args, return_sort } => {
