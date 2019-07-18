@@ -576,7 +576,7 @@ pub enum Command<E: Environment, F: Clone> {
     SetLogic(E::Logic)
 }
 
-impl<E: Server, F: Clone> Command<E, F> {
+impl<E: Server, F: Clone> Command<E, F> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     /// Execute the command on the given environment.
     pub fn exec(mut self, env: &mut E) -> ExecResult<(), E::Error> {
         use Command::*;

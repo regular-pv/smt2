@@ -16,8 +16,8 @@ pub struct Internal<L, C: Clone + PartialEq, F: Function> {
 impl<L, C: Clone + PartialEq, F: Function> Internal<L, C, F> {
     fn lexer(&mut self) -> Peekable<Lexer<Decoder<std::io::Bytes<&mut std::process::ChildStdout>>, u32>> {
         let id = self.server.id();
-        // Lexer::new(Decoder::new(self.server.stdout.as_mut().unwrap().by_ref().bytes()), id, Cursor::default()).peekable()
-        Lexer::new(Decoder::new_verbose(self.server.stdout.as_mut().unwrap().by_ref().bytes()), id, Cursor::default()).peekable()
+        Lexer::new(Decoder::new(self.server.stdout.as_mut().unwrap().by_ref().bytes()), id, Cursor::default()).peekable()
+        // Lexer::new(Decoder::new_verbose(self.server.stdout.as_mut().unwrap().by_ref().bytes()), id, Cursor::default()).peekable()
     }
 }
 

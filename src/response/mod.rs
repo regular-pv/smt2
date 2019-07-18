@@ -102,14 +102,40 @@ pub fn compile_declaration<E: Compiler, F: Clone>(env: &E, ast: &syntax::Declara
     })
 }
 
-impl<E: Environment> fmt::Display for Model<E> {
+impl<E: Environment> fmt::Display for Model<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({})", PList(&self.definitions))
     }
 }
 
-impl<E: Environment> fmt::Display for Definition<E> {
+impl<E: Environment> fmt::Display for Definition<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "def")
+        if !self.declarations.is_empty() {
+            if self.rec {
+                if self.declarations.len() == 1 {
+                    let decl = &self.declarations[0];
+                    write!(f, "(define-fun-rec {} ({}) {} {})\n", decl.f, PList(&decl.args), decl.return_sort, self.bodies[0])
+                } else {
+                    write!(f, "(define-funs-rec (")?;
+                    for decl in &self.declarations {
+                        write!(f, "({} ({}) {})", decl.f, PList(&decl.args), decl.return_sort)?;
+                    }
+                    write!(f, ") (")?;
+                    for body in &self.bodies {
+                        write!(f, "({})", body)?;
+                    }
+                    write!(f, ")\n")
+                }
+            } else {
+                if self.declarations.len() > 1 {
+                    panic!("non-rec definitions must have only one declaration!");
+                }
+
+                let decl = &self.declarations[0];
+                write!(f, "(define-fun {} ({}) {} {})\n", decl.f, PList(&decl.args), decl.return_sort, self.bodies[0])
+            }
+        } else {
+            Ok(())
+        }
     }
 }
