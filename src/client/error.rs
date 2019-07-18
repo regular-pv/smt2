@@ -6,7 +6,8 @@ pub enum Error<L, C: Clone + PartialEq, S: Sort, F: Function> {
     Syntax(syntax::Error<u32>),
     Compile(crate::error::Error<Client<L, C, S, F>, u32>),
     UnknownSort,
-    UnknownFunction
+    UnknownUserFunction(F),
+    UnknownFunction(Ident)
 }
 
 impl<L, C: Clone + PartialEq, S: Sort, F: Function> From<std::io::Error> for Error<L, C, S, F> {
@@ -33,7 +34,8 @@ impl<L: fmt::Display, C: Clone + PartialEq, S: Sort + fmt::Display, F: Function 
             Error::Syntax(e) =>  write!(f, "syntax error in the solver response: {}", e),
             Error::Compile(e) => write!(f, "unable to compile the solver response: {}", e),
             Error::UnknownSort => write!(f, "unknown sort"),
-            Error::UnknownFunction => write!(f, "unknown function")
+            Error::UnknownUserFunction(fun) => write!(f, "unknown user function `{}`", fun),
+            Error::UnknownFunction(id) => write!(f, "unknown function `{}`", id)
         }
     }
 }

@@ -21,10 +21,10 @@ impl Ident {
         Ident::Fun(id)
     }
 
-    pub fn from_syntax<F: Clone>(sym: &syntax::Symbol<F>) -> Ident {
-        if sym.id.len() > 4 {
-            if let Some("Sort") = sym.id.get(0..4) {
-                let id_str = sym.id.get(4..).unwrap();
+    pub fn from_string(str: &String) -> Ident {
+        if str.len() > 4 {
+            if let Some("Sort") = str.get(0..4) {
+                let id_str = str.get(4..).unwrap();
                 match u32::from_str_radix(id_str, 16) {
                     Ok(id) => return Ident::Sort(id),
                     _ => ()
@@ -32,9 +32,9 @@ impl Ident {
             }
         }
 
-        if sym.id.len() > 1 {
-            if let Some("f") = sym.id.get(0..1) {
-                let id_str = sym.id.get(1..).unwrap();
+        if str.len() > 1 {
+            if let Some("f") = str.get(0..1) {
+                let id_str = str.get(1..).unwrap();
                 match u32::from_str_radix(id_str, 16) {
                     Ok(id) => return Ident::Fun(id),
                     _ => ()
@@ -42,7 +42,11 @@ impl Ident {
             }
         }
 
-        Ident::Raw(sym.id.clone())
+        Ident::Raw(str.clone())
+    }
+
+    pub fn from_syntax<F: Clone>(sym: &syntax::Symbol<F>) -> Ident {
+        Self::from_string(&sym.id)
     }
 }
 

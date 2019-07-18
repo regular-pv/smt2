@@ -608,7 +608,10 @@ impl<E: Server, F: Clone> Command<E, F> {
             },
             DeclareFun(id, args, return_sort) => env.declare_fun(&id, &args, &return_sort)?,
             Exit => env.exit()?,
-            GetModel => (),
+            GetModel => {
+                let model = env.get_model()?;
+                println!("{}", model);
+            },
             SetLogic(logic) => env.set_logic(&logic)?
         }
 
@@ -669,6 +672,9 @@ pub trait Compiler: Environment {
     /// Find the logic with the given id.
     fn logic(&self, id: &Self::Ident) -> Option<Self::Logic>;
 
+    /// Find the constant with the given id.
+    fn constant(&self, id: &Self::Ident) -> Option<Self::Constant>;
+
     /// Find a function.
     fn function(&self, id: &Self::Ident) -> Option<Self::Function>;
 }
@@ -715,21 +721,30 @@ pub fn compile_term<E: Compiler, F: Clone>(env: &E, ctx: &Context<E>, term: &syn
                     })
                 },
                 None => {
-                    let fun = compile_function(env, &id, &loc)?;
-
-                    let (arity_min, arity_max) = fun.arity(env);
-                    if arity_min > 0 {
-                        Err(error::Kind::WrongNumberOfArguments(arity_min, arity_max, 0).at(loc))
-                    } else {
-                        let sort = match fun.typecheck(env, &[]) {
-                            Ok(sort) => sort,
-                            Err(_) => panic!("typecheck failed on a constant!")
-                        };
-                        Ok(Term::Apply {
-                            fun: fun,
-                            args: Box::new(Vec::new()),
-                            sort: sort
-                        })
+                    match compile_function(env, &id, &loc) {
+                        Ok(fun) => {
+                            let (arity_min, arity_max) = fun.arity(env);
+                            if arity_min > 0 {
+                                Err(error::Kind::WrongNumberOfArguments(arity_min, arity_max, 0).at(loc))
+                            } else {
+                                let sort = match fun.typecheck(env, &[]) {
+                                    Ok(sort) => sort,
+                                    Err(_) => panic!("typecheck failed on a constant!")
+                                };
+                                Ok(Term::Apply {
+                                    fun: fun,
+                                    args: Box::new(Vec::new()),
+                                    sort: sort
+                                })
+                            }
+                        },
+                        Err(e) => {
+                            if let Some(cst) = env.constant(&id) {
+                                Ok(Term::Const(cst))
+                            } else {
+                                Err(e)
+                            }
+                        }
                     }
                 }
             }
@@ -779,41 +794,50 @@ pub fn compile_term<E: Compiler, F: Clone>(env: &E, ctx: &Context<E>, term: &syn
         },
         syntax::TermKind::Apply { id, args } => {
             let id = compile_ident(env, &id)?;
-            let fun = compile_function(env, &id, &loc)?;
+            match compile_function(env, &id, &loc) {
+                Ok(fun) => {
+                    let (arity_min, arity_max) = fun.arity(env);
+                    if args.len() < arity_min || args.len() > arity_max {
+                        Err(error::Kind::WrongNumberOfArguments(arity_min, arity_max, args.len()).at(loc))
+                    } else {
+                        let mut compiled_args = Vec::with_capacity(args.len());
+                        let mut args_types = Vec::with_capacity(args.len());
+                        for (i, arg) in args.iter().enumerate() {
+                            let term = compile_term(env, ctx, &arg)?;
+                            args_types.push(term.sort(env, ctx));
+                            compiled_args.push(term);
+                        }
 
-            let (arity_min, arity_max) = fun.arity(env);
-            if args.len() < arity_min || args.len() > arity_max {
-                Err(error::Kind::WrongNumberOfArguments(arity_min, arity_max, args.len()).at(loc))
-            } else {
-                let mut compiled_args = Vec::with_capacity(args.len());
-                let mut args_types = Vec::with_capacity(args.len());
-                for (i, arg) in args.iter().enumerate() {
-                    let term = compile_term(env, ctx, &arg)?;
-                    args_types.push(term.sort(env, ctx));
-                    compiled_args.push(term);
-                }
+                        // let expected_type = fun.sort(env, i).unwrap();
+                        // let given_type = term.sort(env, ctx);
+                        // if given_type != expected_type {
+                        //     return Err(error::Kind::TypeMissmatch(expected_type, given_type).at(arg.location().clone()))
+                        // }
 
-                // let expected_type = fun.sort(env, i).unwrap();
-                // let given_type = term.sort(env, ctx);
-                // if given_type != expected_type {
-                //     return Err(error::Kind::TypeMissmatch(expected_type, given_type).at(arg.location().clone()))
-                // }
+                        let sort = match fun.typecheck(env, &args_types) {
+                            Ok(sort) => sort,
+                            Err(TypeCheckError::Missmatch(i, expected_type)) => {
+                                return Err(error::Kind::TypeMissmatch(expected_type, args_types[i].clone()).at(args[i].location().clone()))
+                            },
+                            Err(TypeCheckError::Ambiguity(_)) => {
+                                return Err(error::Kind::TypeAmbiguity.at(loc))
+                            }
+                        };
 
-                let sort = match fun.typecheck(env, &args_types) {
-                    Ok(sort) => sort,
-                    Err(TypeCheckError::Missmatch(i, expected_type)) => {
-                        return Err(error::Kind::TypeMissmatch(expected_type, args_types[i].clone()).at(args[i].location().clone()))
-                    },
-                    Err(TypeCheckError::Ambiguity(_)) => {
-                        return Err(error::Kind::TypeAmbiguity.at(loc))
+                        Ok(Term::Apply {
+                            fun: fun,
+                            args: Box::new(compiled_args),
+                            sort: sort
+                        })
                     }
-                };
-
-                Ok(Term::Apply {
-                    fun: fun,
-                    args: Box::new(compiled_args),
-                    sort: sort
-                })
+                },
+                Err(e) => {
+                    if let Some(cst) = env.constant(&id) {
+                        Ok(Term::Const(cst))
+                    } else {
+                        Err(e)
+                    }
+                }
             }
         }
     }
@@ -856,7 +880,7 @@ pub fn compile_ident<E: Compiler, F: Clone>(env: &E, id: &syntax::Ident<F>) -> R
 pub fn compile_function<E: Compiler, F: Clone>(env: &E, id: &E::Ident, loc: &Location<F>) -> Result<E::Function, E, F> where <E as Environment>::Function: Function<E> {
     match env.function(&id) {
         Some(f) => Ok(f),
-        None => Err(error::Kind::UnknownFunction.at(loc.clone()))
+        None => Err(error::Kind::UnknownFunction(id.clone()).at(loc.clone()))
     }
 }
 

@@ -1,3 +1,4 @@
+use std::fmt;
 use crate::{
     Result,
     error,
@@ -11,7 +12,8 @@ use crate::{
     compile_symbol,
     compile_term,
     compile_sorted_var,
-    compile_sort
+    compile_sort,
+    PList
 };
 use crate::syntax::response as syntax;
 
@@ -65,9 +67,13 @@ pub fn compile_definition<E: Compiler, F: Clone>(env: &E, ast: &syntax::Definiti
         compiled_declarations.push(compile_declaration(env, decl)?);
     }
 
-    let ctx = Context::new();
+    for (i, body) in ast.bodies.iter().enumerate() {
+        let decl = &compiled_declarations[i];
+        let mut ctx = Context::new();
+        for a in &decl.args {
+            ctx.push(&a.id, &a.sort);
+        }
 
-    for body in ast.bodies.iter() {
         compiled_bodies.push(compile_term(env, &ctx, body)?);
     }
 
@@ -80,7 +86,7 @@ pub fn compile_definition<E: Compiler, F: Clone>(env: &E, ast: &syntax::Definiti
 
 pub fn compile_declaration<E: Compiler, F: Clone>(env: &E, ast: &syntax::Declaration<F>) -> Result<Declaration<E>, E, F> where E::Function: Function<E> {
     let id = compile_symbol(env, &ast.id)?;
-    let f = env.function(&id).ok_or(error::Kind::UnknownFunction.at(ast.location.clone()))?;
+    let f = env.function(&id).ok_or(error::Kind::UnknownFunction(id.clone()).at(ast.location.clone()))?;
 
     let mut compiled_args = Vec::with_capacity(ast.args.len());
     for a in ast.args.iter() {
@@ -94,4 +100,16 @@ pub fn compile_declaration<E: Compiler, F: Clone>(env: &E, ast: &syntax::Declara
         args: compiled_args,
         return_sort: return_sort
     })
+}
+
+impl<E: Environment> fmt::Display for Model<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({})", PList(&self.definitions))
+    }
+}
+
+impl<E: Environment> fmt::Display for Definition<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "def")
+    }
 }

@@ -6,6 +6,7 @@ use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::iter::Peekable;
+use std::convert::TryFrom;
 use std::process::{
     self,
     Stdio
@@ -17,23 +18,33 @@ pub mod error;
 mod ident;
 mod internal;
 mod interface;
+mod sorted;
+
+pub mod cvc4;
 
 pub use error::Error;
 use ident::*;
 use internal::*;
 use interface::*;
+pub use sorted::*;
 
 pub trait Sort: Clone + Hash + Eq {
     fn arity(&self) -> usize;
 }
 
-pub trait Function = Clone + Hash + Eq;
+pub trait Function = Clone + Hash + Eq + fmt::Display;
+pub trait Constant: Clone + PartialEq + TryFrom<String> {
+    fn sort_id(&self) -> &String;
+
+    fn index(&self) -> u32;
+}
 
 pub enum FunctionSignature<S> {
     User {
         args: Vec<GroundSort<S>>,
         return_sort: GroundSort<S>
     },
+    Equality,
     LogicUnary,
     LogicBinary,
     LogicNary
@@ -49,10 +60,10 @@ pub struct Client<L, C: Clone + PartialEq, S: Sort, F: Function> {
     l: PhantomData<L>,
 }
 
-impl<L, C: Clone + PartialEq, S: Sort, F: Clone + Eq + Hash> Environment for Client<L, C, S, F> {
+impl<L, C: Clone + PartialEq, S: Sort, F: Function> Environment for Client<L, C, S, F> {
     type Logic = L;
     type Ident = Ident;
-    type Constant = C;
+    type Constant = Sorted<C, GroundSort<S>>;
     type Sort = S;
     type Function = F;
     type Error = Error<L, C, S, F>;
@@ -73,12 +84,12 @@ impl<L, C: Clone + PartialEq, S: Sort, F: Clone + Eq + Hash> Environment for Cli
         self.sort_bool.clone()
     }
 
-    fn const_sort(&self, cst: &C) -> GroundSort<S> {
-        panic!("TODO const_sort")
+    fn const_sort(&self, cst: &Sorted<C, GroundSort<S>>) -> GroundSort<S> {
+        cst.1.clone()
     }
 }
 
-impl<L, C: Clone + PartialEq, S: Sort, F: Clone + Eq + Hash> Client<L, C, S, F>
+impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F>
 where L: fmt::Display, C: fmt::Display {
     pub fn new(mut cmd: process::Command, sort_bool: S, cst_true: F, cst_false: F) -> std::io::Result<Client<L, C, S, F>> {
         let server = cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;

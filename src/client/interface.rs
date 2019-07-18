@@ -16,11 +16,13 @@
 use super::*;
 use super::error::InternalError;
 
-impl<L, C: Clone + PartialEq, S: Sort, F: Function> Client<L, C, S, F> {
+impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
     pub(crate) fn downgrade_term(&self, term: &Term<Self>) -> ExecResult<Term<Internal<L, C, F>>, Error<L, C, S, F>> {
         use Term::*;
         match term {
-            Const(c) => Ok(Const(c.clone())),
+            Const(Sorted(c, sort)) => {
+                Ok(Const(Sorted(c.clone(), self.downgrade_ground_sort(sort)?)))
+            },
             Var { index, id } => Ok(Var { index: *index, id: id.clone() }),
             Let { bindings, body } => {
                 let mut internal_bindings = Vec::with_capacity(bindings.len());
@@ -78,7 +80,7 @@ impl<L, C: Clone + PartialEq, S: Sort, F: Function> Client<L, C, S, F> {
         if let Some(internal_f) = self.internal.functions_ids.get(f) {
             Ok(internal_f.clone())
         } else {
-            Err(Error::UnknownFunction)
+            Err(Error::UnknownUserFunction(f.clone()))
         }
     }
 
@@ -97,6 +99,7 @@ impl<L, C: Clone + PartialEq, S: Sort, F: Function> Client<L, C, S, F> {
                     return_sort: d_return_sort
                 })
             },
+            FunctionSignature::Equality => Ok(InternalFunctionSignature::Equality),
             FunctionSignature::LogicUnary => Ok(InternalFunctionSignature::LogicUnary),
             FunctionSignature::LogicBinary => Ok(InternalFunctionSignature::LogicBinary),
             FunctionSignature::LogicNary => Ok(InternalFunctionSignature::LogicNary)
@@ -133,7 +136,9 @@ impl<L, C: Clone + PartialEq, S: Sort, F: Function> Client<L, C, S, F> {
     pub(crate) fn upgrade_term(&self, term: &Term<Internal<L, C, F>>) -> ExecResult<Term<Self>, Error<L, C, S, F>> {
         use Term::*;
         match term {
-            Const(c) => Ok(Const(c.clone())),
+            Const(Sorted(c, sort)) => {
+                Ok(Const(Sorted(c.clone(), self.upgrade_ground_sort(sort)?)))
+            },
             Var { index, id } => Ok(Var { index: *index, id: id.clone() }),
             Let { bindings, body } => {
                 let mut internal_bindings = Vec::with_capacity(bindings.len());
@@ -198,13 +203,25 @@ impl<L, C: Clone + PartialEq, S: Sort, F: Function> Client<L, C, S, F> {
         if let Some(sort) = self.ids_sorts.get(sort) {
             Ok(sort.clone())
         } else {
-            println!("unknown {:?}", sort);
             Err(Error::UnknownSort)
         }
     }
 
     pub(crate) fn upgrade_abstract_sort(&self, sort: &AbstractGroundSort<Ident>) -> ExecResult<AbstractGroundSort<S>, Error<L, C, S, F>> {
-        panic!("TODO")
+        match sort {
+            AbstractGroundSort::Param(i) => Ok(AbstractGroundSort::Param(*i)),
+            AbstractGroundSort::Sort { sort, parameters } => {
+                let mut u_parameters = Vec::with_capacity(parameters.len());
+                for p in parameters {
+                    u_parameters.push(self.upgrade_abstract_sort(p)?);
+                }
+
+                Ok(AbstractGroundSort::Sort {
+                    sort: self.upgrade_sort(sort)?,
+                    parameters: u_parameters
+                })
+            }
+        }
     }
 
     pub(crate) fn upgrade_ground_sort(&self, sort: &GroundSort<Ident>) -> ExecResult<GroundSort<S>, Error<L, C, S, F>> {
@@ -281,7 +298,7 @@ impl<L, C: Clone + PartialEq, S: Sort, F: Function> Client<L, C, S, F> {
                             InvalidSymbol(s) => InvalidSymbol(s),
                             InvalidIdent(id) => InvalidIdent(id),
                             UnknownSort => UnknownSort,
-                            UnknownFunction => UnknownFunction,
+                            UnknownFunction(id) => UnknownFunction(id),
                             UndefinedVariable(id) => UndefinedVariable(id),
                             NegativeArity => NegativeArity,
                             WrongNumberOfArguments(a, b, c) => WrongNumberOfArguments(a, b, c),

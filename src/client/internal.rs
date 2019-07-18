@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::convert::TryFrom;
 use super::*;
 use super::error::InternalError;
 
@@ -23,7 +24,7 @@ impl<L, C: Clone + PartialEq, F: Function> Internal<L, C, F> {
 impl<L, C: Clone + PartialEq, F: Function> Environment for Internal<L, C, F> {
     type Logic = L;
     type Ident = Ident;
-    type Constant = C;
+    type Constant = Sorted<C, GroundSort<Ident>>;
     type Sort = Ident;
     type Function = InternalFunction<F>;
     type Error = InternalError<L, C, F>;
@@ -38,12 +39,12 @@ impl<L, C: Clone + PartialEq, F: Function> Environment for Internal<L, C, F> {
         self.sort_bool.clone()
     }
 
-    fn const_sort(&self, cst: &C) -> GroundSort<Ident> {
-        panic!("TODO const_sort")
+    fn const_sort(&self, cst: &Sorted<C, GroundSort<Ident>>) -> GroundSort<Ident> {
+        cst.sort().clone()
     }
 }
 
-impl<L, C: Clone + PartialEq, F: Function> Server for Internal<L, C, F>
+impl<L, C: Constant, F: Function> Server for Internal<L, C, F>
 where L: fmt::Display, C: fmt::Display {
     /// Assert.
     fn assert(&mut self, term: &Term<Self>) -> ExecResult<(), Self::Error> {
@@ -107,7 +108,7 @@ where L: fmt::Display, C: fmt::Display {
     }
 }
 
-impl<L, C: Clone + PartialEq, F: Function> Compiler for Internal<L, C, F> {
+impl<L, C: Constant, F: Function> Compiler for Internal<L, C, F> {
     /// Find the ident for the iven syntax symbol.
     fn ident_of_symbol<File: Clone>(&self, sym: &syntax::Symbol<File>) -> Option<Ident> {
         Some(Ident::from_syntax(sym))
@@ -123,8 +124,25 @@ impl<L, C: Clone + PartialEq, F: Function> Compiler for Internal<L, C, F> {
     }
 
     /// Find the logic with the given id.
-    fn logic(&self, id: &Self::Ident) -> Option<Self::Logic> {
+    fn logic(&self, id: &Ident) -> Option<Self::Logic> {
         None
+    }
+
+    fn constant(&self, id: &Ident) -> Option<Sorted<C, GroundSort<Ident>>> {
+        if let Ident::Raw(name) = id {
+            if let Ok(cst) = C::try_from(name.clone()) {
+                let sort = Ident::from_string(cst.sort_id());
+                let gsort = GroundSort {
+                    sort: sort,
+                    parameters: Vec::new()
+                };
+                Some(Sorted(cst, gsort))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     /// Find a function.
@@ -141,6 +159,7 @@ pub enum InternalFunctionSignature {
         args: Vec<GroundSort<Ident>>,
         return_sort: GroundSort<Ident>
     },
+    Equality,
     LogicUnary,
     LogicBinary,
     LogicNary
@@ -175,6 +194,7 @@ impl<L, C: Clone + PartialEq, F: Function> crate::Function<Internal<L, C, F>> fo
         use self::InternalFunctionSignature::*;
         match &*self.sig {
             User { args, .. } => (args.len(), args.len()),
+            Equality => (2, 2),
             LogicUnary => (1, 1),
             LogicBinary => (2, 2),
             LogicNary => (0, std::usize::MAX)
@@ -192,6 +212,13 @@ impl<L, C: Clone + PartialEq, F: Function> crate::Function<Internal<L, C, F>> fo
                 }
 
                 Ok(return_sort.clone())
+            },
+            Equality => {
+                if input[0] == input[1] {
+                    Ok(env.sort_bool.clone())
+                } else {
+                    Err(TypeCheckError::Missmatch(1, (&input[0]).into()))
+                }
             },
             _ => {
                 for (i, a) in input.iter().enumerate() {

@@ -28,7 +28,7 @@ pub enum Kind<E: Environment, F: Clone> {
 	InvalidSymbol(syntax::Symbol<F>),
 	InvalidIdent(syntax::Ident<F>),
 	UnknownSort,
-	UnknownFunction,
+	UnknownFunction(E::Ident),
 	UndefinedVariable(E::Ident),
 	NegativeArity,
 	WrongNumberOfArguments(usize, usize, usize), // (expected_min, expected_max, given).
@@ -58,7 +58,7 @@ impl<E: Environment, F: Clone> fmt::Display for Kind<E, F> where E::Sort: fmt::D
 			InvalidSymbol(sym) => write!(f, "unknown symbol `{}`", sym),
 			InvalidIdent(id) => write!(f, "unknown ident `{}`", id),
 			UnknownSort => write!(f, "unknown sort"),
-			UnknownFunction => write!(f, "unknown function"),
+			UnknownFunction(id) => write!(f, "unknown function `{}`", id),
 			UndefinedVariable(id) => write!(f, "undefined variable `{}`", id),
 			NegativeArity => write!(f, "arity must be positive or zero"),
 			WrongNumberOfArguments(min, max, given) => {
