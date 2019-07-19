@@ -135,6 +135,10 @@ pub enum Term<E: Environment> {
         vars: Vec<SortedVar<E>>,
         body: Box<Term<E>>
     },
+    Match {
+        term: Box<Term<E>>,
+        cases: Vec<MatchCase<E>>
+    },
     Apply {
         fun: E::Function,
         args: Box<Vec<Term<E>>>,
@@ -161,7 +165,56 @@ impl<E: Environment> Term<E> {
             },
             Forall { .. } => env.sort_bool(),
             Exists { .. } => env.sort_bool(),
+            Match { term, .. } => term.sort(env, ctx),
             Apply { sort, .. } => sort.clone()
+        }
+    }
+}
+
+impl<E: Environment, F: Clone> From<Term<E>> for syntax::Term<F> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+    fn from(term: Term<E>) -> Self {
+        use self::Term::*;
+        let kind = match term {
+            Const(c) => syntax::TermKind::Apply {
+                id: syntax::Symbol::format(c).into(),
+                args: Box::new(Vec::new())
+            },
+            Var { id, .. } => syntax::TermKind::Ident(syntax::Symbol::format(id).into()),
+            Let { bindings, body } => {
+                syntax::TermKind::Let {
+                    bindings: bindings.into_iter().map(|b| b.into()).collect(),
+                    body: Box::new((*body).into())
+                }
+            },
+            Forall { vars, body } => {
+                syntax::TermKind::Forall {
+                    vars: vars.into_iter().map(|v| v.into()).collect(),
+                    body: Box::new((*body).into())
+                }
+            },
+            Exists { vars, body } => {
+                syntax::TermKind::Exists {
+                    vars: vars.into_iter().map(|v| v.into()).collect(),
+                    body: Box::new((*body).into())
+                }
+            },
+            Match { term, cases } => {
+                syntax::TermKind::Match {
+                    term: Box::new((*term).into()),
+                    cases: cases.into_iter().map(|c| c.into()).collect()
+                }
+            },
+            Apply { fun, args, .. } => {
+                syntax::TermKind::Apply {
+                    id: syntax::Symbol::format(fun).into(),
+                    args: Box::new(args.into_iter().map(|a| a.into()).collect())
+                }
+            }
+        };
+
+        syntax::Term {
+            location: Location::nowhere(),
+            kind: kind
         }
     }
 }
@@ -181,6 +234,9 @@ impl<E: Environment> fmt::Display for Term<E> where E::Constant: fmt::Display, E
             Exists { vars, body } => {
                 write!(f, "(exists ({}) {})", PList(vars), body)
             },
+            Match { term, cases } => {
+                write!(f, "(match {} ({}))", term, PList(cases))
+            },
             Apply { fun, args, .. } => {
                 if args.is_empty() {
                     write!(f, "{}", fun)
@@ -192,10 +248,66 @@ impl<E: Environment> fmt::Display for Term<E> where E::Constant: fmt::Display, E
     }
 }
 
+pub struct MatchCase<E: Environment> {
+    pub pattern: Pattern<E>,
+    pub term: Box<Term<E>>
+}
+
+impl<E: Environment, F: Clone> From<MatchCase<E>> for syntax::MatchCase<F> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+    fn from(case: MatchCase<E>) -> Self {
+        syntax::MatchCase {
+            location: Location::nowhere(),
+            pattern: case.pattern.into(),
+            term: Box::new((*case.term).into())
+        }
+    }
+}
+
+impl<E: Environment> fmt::Display for MatchCase<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({} {})", self.pattern, self.term)
+    }
+}
+
+pub struct Pattern<E: Environment> {
+    pub constructor: E::Function,
+    pub args: Vec<E::Ident>
+}
+
+impl<E: Environment, F: Clone> From<Pattern<E>> for syntax::Pattern<F> where E::Function: fmt::Display, E::Ident: fmt::Display {
+    fn from(pattern: Pattern<E>) -> Self {
+        syntax::Pattern {
+            location: Location::nowhere(),
+            constructor: syntax::Symbol::format(pattern.constructor),
+            args: pattern.args.into_iter().map(|a| syntax::Symbol::format(a)).collect()
+        }
+    }
+}
+
+impl<E: Environment> fmt::Display for Pattern<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.args.is_empty() {
+            write!(f, "{}", self.constructor)
+        } else {
+            write!(f, "({} {})", self.constructor, PList(&self.args))
+        }
+    }
+}
+
 /// Variable binding.
 pub struct Binding<E: Environment> {
     pub id: E::Ident,
     pub value: Box<Term<E>>
+}
+
+impl<E: Environment, F: Clone> From<Binding<E>> for syntax::Binding<F> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+    fn from(binding: Binding<E>) -> Self {
+        syntax::Binding {
+            location: Location::nowhere(),
+            id: syntax::Symbol::format(binding.id).into(),
+            value: Box::new((*binding.value).into())
+        }
+    }
 }
 
 impl<E: Environment> fmt::Display for Binding<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
@@ -208,6 +320,16 @@ impl<E: Environment> fmt::Display for Binding<E> where E::Constant: fmt::Display
 pub struct SortedVar<E: Environment> {
     pub id: E::Ident,
     pub sort: GroundSort<E::Sort>
+}
+
+impl<E: Environment, F: Clone> From<SortedVar<E>> for syntax::SortedVar<F> where E::Ident: fmt::Display, E::Sort: fmt::Display {
+    fn from(var: SortedVar<E>) -> Self {
+        syntax::SortedVar {
+            location: Location::nowhere(),
+            id: syntax::Symbol::format(var.id),
+            sort: var.sort.into()
+        }
+    }
 }
 
 impl<E: Environment> fmt::Display for SortedVar<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Sort: fmt::Display {
@@ -228,6 +350,16 @@ impl<T> GroundSort<T> {
         GroundSort {
             sort: sort,
             parameters: Vec::new()
+        }
+    }
+}
+
+impl<T, F: Clone> From<GroundSort<T>> for syntax::Sort<F> where T: fmt::Display {
+    fn from(sort: GroundSort<T>) -> Self {
+        syntax::Sort {
+            location: Location::nowhere(),
+            id: syntax::Symbol::format(sort.sort).into(),
+            parameters: sort.parameters.into_iter().map(|p| p.into()).collect()
         }
     }
 }
@@ -610,7 +742,8 @@ impl<E: Server, F: Clone> Command<E, F> where E::Constant: fmt::Display, E::Iden
             Exit => env.exit()?,
             GetModel => {
                 let model = env.get_model()?;
-                println!("{}", model);
+                let ast: syntax::response::Model<()> = model.into();
+                println!("{}", syntax::PrettyPrint(&ast));
             },
             SetLogic(logic) => env.set_logic(&logic)?
         }
@@ -791,6 +924,9 @@ pub fn compile_term<E: Compiler, F: Clone>(env: &E, ctx: &Context<E>, term: &syn
                 vars: compiled_vars,
                 body: Box::new(body)
             })
+        },
+        syntax::TermKind::Match { term, cases } => {
+            panic!("TODO compile match")
         },
         syntax::TermKind::Apply { id, args } => {
             let id = compile_ident(env, &id)?;

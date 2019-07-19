@@ -1,5 +1,6 @@
 use std::fmt;
 use crate::{
+    Location,
     Result,
     error,
     Environment,
@@ -108,6 +109,27 @@ impl<E: Environment> fmt::Display for Model<E> where E::Constant: fmt::Display, 
     }
 }
 
+impl<E: Environment, F: Clone> From<Model<E>> for syntax::Model<F> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+    fn from(model: Model<E>) -> Self {
+        syntax::Model {
+            location: Location::nowhere(),
+            sorts: Vec::new(),
+            definitions: model.definitions.into_iter().map(|d| d.into()).collect()
+        }
+    }
+}
+
+impl<E: Environment, F: Clone> From<Definition<E>> for syntax::Definition<F> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+    fn from(def: Definition<E>) -> Self {
+        syntax::Definition {
+            location: Location::nowhere(),
+            rec: def.rec,
+            declarations: def.declarations.into_iter().map(|d| d.into()).collect(),
+            bodies: def.bodies.into_iter().map(|b| b.into()).collect()
+        }
+    }
+}
+
 impl<E: Environment> fmt::Display for Definition<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if !self.declarations.is_empty() {
@@ -136,6 +158,17 @@ impl<E: Environment> fmt::Display for Definition<E> where E::Constant: fmt::Disp
             }
         } else {
             Ok(())
+        }
+    }
+}
+
+impl<E: Environment, F: Clone> From<Declaration<E>> for syntax::Declaration<F> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+    fn from(decl: Declaration<E>) -> Self {
+        syntax::Declaration {
+            location: Location::nowhere(),
+            id: syntax::Symbol::format(decl.f),
+            args: decl.args.into_iter().map(|a| a.into()).collect(),
+            return_sort: decl.return_sort.into()
         }
     }
 }

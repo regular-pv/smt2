@@ -14,6 +14,7 @@ pub mod lexer;
 pub mod buffer;
 pub mod pp;
 pub mod response;
+pub mod display;
 
 pub use error::*;
 pub use ast::*;
@@ -21,6 +22,7 @@ pub use token::Token;
 pub use lexer::Lexer;
 pub use buffer::Buffer;
 pub use pp::PrettyPrinter;
+pub use display::{Display, Formatter, PrettyPrint};
 
 pub trait Parsable<F: Clone> : Sized {
 	/**

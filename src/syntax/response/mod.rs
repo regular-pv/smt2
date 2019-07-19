@@ -15,6 +15,7 @@ use crate::syntax::{
 };
 
 mod ast;
+pub mod display;
 
 pub use ast::*;
 

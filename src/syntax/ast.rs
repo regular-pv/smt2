@@ -12,6 +12,15 @@ pub struct Symbol<F: Clone> {
     pub id: String
 }
 
+impl<F: Clone> Symbol<F> {
+    pub fn format<T: fmt::Display>(t: T) -> Symbol<F> {
+        Symbol {
+            location: Location::nowhere(),
+            id: format!("{}", t)
+        }
+    }
+}
+
 impl<F: Clone> Localisable<F> for Symbol<F> {
     fn location(&self) -> &Location<F> {
         &self.location
@@ -79,6 +88,16 @@ pub struct Ident<F: Clone> {
     pub location: Location<F>,
     pub id: Symbol<F>,
     pub indexes: Vec<Index<F>>
+}
+
+impl<F: Clone> From<Symbol<F>> for Ident<F> {
+    fn from(sym: Symbol<F>) -> Self {
+        Ident {
+            location: sym.location.clone(),
+            id: sym,
+            indexes: Vec::new()
+        }
+    }
 }
 
 impl<F: Clone> Localisable<F> for Ident<F> {
@@ -282,6 +301,10 @@ pub enum TermKind<F: Clone> {
         vars: Vec<SortedVar<F>>,
         body: Box<Term<F>>
     },
+    Match {
+        term: Box<Term<F>>,
+        cases: Vec<MatchCase<F>>
+    },
     Apply {
         id: Ident<F>,
         args: Box<Vec<Term<F>>>
@@ -297,7 +320,38 @@ impl<F: Clone> fmt::Display for TermKind<F> {
             Let { bindings, body } => write!(f, "(let ({}) {})", PList(&bindings), body),
             Forall { vars, body } => write!(f, "(forall ({}) {})", PList(&vars), body),
             Exists { vars, body } => write!(f, "(exists ({}) {})", PList(&vars), body),
+            Match { term, cases } => write!(f, "(match {}, ({}))", term, PList(cases)),
             Apply { id, args } => write!(f, "({} {})", id, PList(&args))
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct MatchCase<F: Clone> {
+    pub location: Location<F>,
+    pub pattern: Pattern<F>,
+    pub term: Box<Term<F>>
+}
+
+impl<F: Clone> fmt::Display for MatchCase<F> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({} {})", self.pattern, self.term)
+    }
+}
+
+#[derive(Clone)]
+pub struct Pattern<F: Clone> {
+    pub location: Location<F>,
+    pub constructor: Symbol<F>,
+    pub args: Vec<Symbol<F>>
+}
+
+impl<F: Clone> fmt::Display for Pattern<F> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.args.is_empty() {
+            write!(f, "{}", self.constructor)
+        } else {
+            write!(f, "({} {})", self.constructor, PList(&self.args))
         }
     }
 }

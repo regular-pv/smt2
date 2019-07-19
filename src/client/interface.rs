@@ -54,6 +54,16 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
                     body: Box::new(self.downgrade_term(body)?)
                 })
             },
+            Match { term, cases } => {
+                let mut internal_cases = Vec::with_capacity(cases.len());
+                for c in cases {
+                    internal_cases.push(self.downgrade_case(c)?);
+                }
+                Ok(Match {
+                    term: Box::new(self.downgrade_term(term)?),
+                    cases: internal_cases
+                })
+            },
             Apply { fun, args, sort } => {
                 let mut internal_args = Vec::with_capacity(args.len());
                 for a in args.iter() {
@@ -66,6 +76,14 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
                 })
             }
         }
+    }
+
+    pub(crate) fn downgrade_case(&self, case: &MatchCase<Self>) -> ExecResult<MatchCase<Internal<L, C, F>>, Error<L, C, S, F>> {
+        panic!("TODO")
+    }
+
+    pub(crate) fn downgrade_pattern(&self, pattern: &Pattern<Self>) -> ExecResult<Pattern<Internal<L, C, F>>, Error<L, C, S, F>> {
+        panic!("TODO")
     }
 
     pub(crate) fn downgrade_binding(&self, binding: &Binding<Self>) -> ExecResult<Binding<Internal<L, C, F>>, Error<L, C, S, F>> {
@@ -170,6 +188,16 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
                     body: Box::new(self.upgrade_term(body)?)
                 })
             },
+            Match { term, cases } => {
+                let mut u_cases = Vec::with_capacity(cases.len());
+                for c in cases {
+                    u_cases.push(self.upgrade_case(c)?);
+                }
+                Ok(Match {
+                    term: Box::new(self.upgrade_term(term)?),
+                    cases: u_cases
+                })
+            },
             Apply { fun, args, sort } => {
                 let mut internal_args = Vec::with_capacity(args.len());
                 for a in args.iter() {
@@ -182,6 +210,14 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
                 })
             }
         }
+    }
+
+    pub(crate) fn upgrade_case(&self, case: &MatchCase<Internal<L, C, F>>) -> ExecResult<MatchCase<Self>, Error<L, C, S, F>> {
+        panic!("TODO")
+    }
+
+    pub(crate) fn upgrade_pattern(&self, pattern: &Pattern<Internal<L, C, F>>) -> ExecResult<Pattern<Self>, Error<L, C, S, F>> {
+        panic!("TODO")
     }
 
     pub(crate) fn upgrade_binding(&self, binding: &Binding<Internal<L, C, F>>) -> ExecResult<Binding<Self>, Error<L, C, S, F>> {
