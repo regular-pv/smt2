@@ -162,7 +162,8 @@ pub enum InternalFunctionSignature {
     Equality,
     LogicUnary,
     LogicBinary,
-    LogicNary
+    LogicNary,
+    Ite
 }
 
 #[derive(Clone)]
@@ -197,7 +198,8 @@ impl<L, C: Clone + PartialEq, F: Function> crate::Function<Internal<L, C, F>> fo
             Equality => (2, 2),
             LogicUnary => (1, 1),
             LogicBinary => (2, 2),
-            LogicNary => (0, std::usize::MAX)
+            LogicNary => (0, std::usize::MAX),
+            Ite => (3, 3)
         }
     }
 
@@ -218,6 +220,17 @@ impl<L, C: Clone + PartialEq, F: Function> crate::Function<Internal<L, C, F>> fo
                     Ok(env.sort_bool.clone())
                 } else {
                     Err(TypeCheckError::Missmatch(1, (&input[0]).into()))
+                }
+            },
+            Ite => {
+                if input[0] != env.sort_bool {
+                    return Err(TypeCheckError::Missmatch(0, (&env.sort_bool).into()))
+                }
+
+                if input[1] == input[2] {
+                    Ok(input[1].clone())
+                } else {
+                    Err(TypeCheckError::Missmatch(2, (&input[1]).into()))
                 }
             },
             _ => {

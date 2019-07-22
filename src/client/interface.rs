@@ -120,7 +120,8 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
             FunctionSignature::Equality => Ok(InternalFunctionSignature::Equality),
             FunctionSignature::LogicUnary => Ok(InternalFunctionSignature::LogicUnary),
             FunctionSignature::LogicBinary => Ok(InternalFunctionSignature::LogicBinary),
-            FunctionSignature::LogicNary => Ok(InternalFunctionSignature::LogicNary)
+            FunctionSignature::LogicNary => Ok(InternalFunctionSignature::LogicNary),
+            FunctionSignature::Ite => Ok(InternalFunctionSignature::Ite)
         }
     }
 

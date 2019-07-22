@@ -47,7 +47,8 @@ pub enum FunctionSignature<S> {
     Equality,
     LogicUnary,
     LogicBinary,
-    LogicNary
+    LogicNary,
+    Ite
 }
 
 /// SMT2-lib solver environment.
