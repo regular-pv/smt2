@@ -1,168 +1,137 @@
 use std::io;
 use std::iter::Peekable;
-use super::{Cursor, Location};
-use super::{utf8, token, Token, Result};
+use source_span::{Position, Span};
+use crate::Located;
+use super::{token, Token, Result, Error};
 
-pub struct Decoder<R: Iterator<Item=io::Result<u8>>> {
-	bytes: R,
-	verbose: bool
-}
-
-impl<R: Iterator<Item=io::Result<u8>>> Decoder<R> {
-	pub fn new(source: R) -> Decoder<R> {
-		Decoder {
-			bytes: source,
-			verbose: false
-		}
-	}
-
-	pub fn new_verbose(source: R) -> Decoder<R> {
-		Decoder {
-			bytes: source,
-			verbose: true
-		}
-	}
-}
-
-impl<R: Iterator<Item=io::Result<u8>>> Iterator for Decoder<R> {
-	type Item = char;
-
-	fn next(&mut self) -> Option<char> {
-		match utf8::decode(&mut self.bytes) {
-			Some(c) => {
-				let c = c.expect("invalid utf8 sequence");
-				if self.verbose {
-					print!("{}", c);
-				}
-				Some(c)
-			},
-			None => None
-		}
-	}
-}
-
-pub struct Lexer<R: Iterator<Item=char>, F: Clone> {
+pub struct Lexer<R: Iterator<Item=io::Result<char>>> {
 	decoder: Peekable<R>,
-	location: Location<F>
+	location: Span
 }
 
 fn is_separator(c: char) -> bool {
 	c == '.' || c == ';' || c == ':' || c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']'
 }
 
-impl<R: Iterator<Item=char>, F: Clone> Lexer<R, F> {
-	pub fn new(source: R, file: F, cursor: Cursor) -> Lexer<R, F> {
+impl<R: Iterator<Item = io::Result<char>>> Lexer<R> {
+	pub fn new(source: R, cursor: Position) -> Lexer<R> {
 		Lexer {
 			decoder: source.peekable(),
-			location: Location::new(file, cursor, cursor),
+			location: cursor.into(),
 			//buffer: Buffer::new(cursor)
 		}
 	}
 
-	pub fn location(&self) -> &Location<F> {
-		&self.location
+	pub fn location(&self) -> Span {
+		self.location
 	}
 
 	/**
 	 * Update the lexer location.
 	 */
-	pub fn set_location(&mut self, location: Location<F>) {
+	pub fn set_location(&mut self, location: Span) {
 		self.location = location
 	}
 
-	fn peek_char(&mut self) -> Option<char> {
+	fn peek_char(&mut self) -> Result<Option<char>> {
 		match self.decoder.peek() {
-			Some(c) => {
+			Some(Ok(c)) => {
 				// eprintln!("peeking: {}", c);
-				Some(*c)
+				Ok(Some(*c))
 			},
-			None => None
+			Some(Err(_)) => {
+				Ok(Some(self.consume()?)) // this will always fail.
+			},
+			None => Ok(None)
 		}
 	}
 
-	fn consume(&mut self) -> char {
-		let c = self.decoder.next().unwrap();
-		// eprintln!("consume: {}", c);
-		match c {
-			'\n' => {
-				self.location.new_line();
+	fn consume(&mut self) -> Result<char> {
+		match self.decoder.next() {
+			Some(Ok(c)) => {
+				self.location.push(c);
+				Ok(c)
 			},
-			c if !c.is_whitespace() => {
-				self.location.move_forward();
+			Some(Err(e)) => {
+				self.location.clear();
+				Err(Error::IO(e).at(self.location.clone()))
 			},
-			_ => self.location.move_forward()
+			None => {
+				self.location.clear();
+				Err(Error::IO(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "unexpected enf of stream")).at(self.location.clone()))
+			}
 		}
-		c
 	}
 
-	fn skip_whitespaces(&mut self) {
+	fn skip_whitespaces(&mut self) -> Result<()> {
 		loop {
-			match self.peek_char() {
-				Some(';') => self.skip_line(),
+			match self.peek_char()? {
+				Some(';') => self.skip_line()?,
 				Some('\n') => {
-					self.consume();
+					self.consume()?;
 				}
 				Some(c) if c.is_whitespace() => {
-					self.consume();
+					self.consume()?;
 				},
 				_ => break
 			}
 		}
+
+		Ok(())
 	}
 
 	/**
 	 * Skip all chars until the next line break.
 	 */
-	fn skip_line(&mut self) {
+	fn skip_line(&mut self) -> Result<()> {
 		loop {
-			match self.peek_char() {
+			match self.peek_char()? {
 				Some('\n') => {
-					self.consume();
+					self.consume()?;
 					break
 				}
 				_ => {
-					self.consume();
+					self.consume()?;
 				},
 				_ => break
 			}
 		}
+
+		Ok(())
 	}
 
-	fn read_ident(&mut self) -> Result<Token<F>, F> {
+	fn read_ident(&mut self) -> Result<Located<Token>> {
 		let mut name = String::new();
-		name.push(self.consume());
+		name.push(self.consume()?);
 
 		loop {
-			match self.peek_char() {
+			match self.peek_char()? {
 				Some(c) if !c.is_whitespace() && !is_separator(c) => {
-					name.push(self.consume());
+					name.push(self.consume()?);
 				},
 				_ => break
 			}
 		}
 
-		let location = self.location.clone();
-		self.location.next();
+		let location = self.location;
+		self.location.clear();
 
-		Ok(Token {
-			location: location,
-			kind: token::Kind::Ident(name.to_string())
-		})
+		Ok(Token::Ident(name.to_string()).at(location))
 	}
 
-	fn read_string(&mut self) -> Result<Token<F>, F> {
+	fn read_string(&mut self) -> Result<Located<Token>> {
 		let mut string = String::new();
 
 		let mut escape = false;
 		loop {
 			if escape {
-				match self.consume() {
+				match self.consume()? {
 					'n' => string.push('\n'),
 					c => string.push(c)
 				}
 				escape = false;
 			} else {
-				match self.consume() {
+				match self.consume()? {
 					'\\' => {
 						escape = true;
 					},
@@ -176,23 +145,20 @@ impl<R: Iterator<Item=char>, F: Clone> Lexer<R, F> {
 			}
 		}
 
-		let location = self.location.clone();
-		self.location.next();
+		let location = self.location;
+		self.location.clear();
 
-		Ok(Token {
-			location: location,
-			kind: token::Kind::Litteral(token::Litteral::String(string))
-		})
+		Ok(Token::Litteral(token::Litteral::String(string)).at(location))
 	}
 
-	fn read_numeric(&mut self, radix: u32, positive: bool) -> Result<Token<F>, F> {
+	fn read_numeric(&mut self, radix: u32, positive: bool) -> Result<Located<Token>> {
 		let mut value = 0;
 		let f = radix as i64;
 
 		loop {
-			match self.peek_char() {
+			match self.peek_char()? {
 				Some(c) if c.is_digit(radix) => {
-					self.consume();
+					self.consume()?;
 					value = value * f + c.to_digit(radix).unwrap() as i64;
 				},
 				_ => break
@@ -203,71 +169,69 @@ impl<R: Iterator<Item=char>, F: Clone> Lexer<R, F> {
 			value = -value;
 		}
 
-		let location = self.location.clone();
-		self.location.next();
+		let location = self.location;
+		self.location.clear();
 
-		Ok(Token {
-			location: location,
-			kind: token::Kind::Litteral(token::Litteral::Int(value))
-		})
+		Ok(Token::Litteral(token::Litteral::Int(value)).at(location))
 	}
-}
 
-impl<R: Iterator<Item=char>, F: Clone> Iterator for Lexer<R, F> {
-	type Item = Result<Token<F>, F>;
-
-	fn next(&mut self) -> Option<Result<Token<F>, F>> {
-		self.skip_whitespaces();
-		self.location.next();
-		match self.peek_char() {
+	fn read_token(&mut self) -> Result<Option<Located<Token>>> {
+		self.skip_whitespaces()?;
+		self.location.clear();
+		match self.peek_char()? {
 			Some(c) => {
 				match c {
 					'(' => {
-						self.consume();
-						let location = self.location.clone();
-						self.location.next();
-						Some(Ok(token::Kind::Begin.at(location)))
+						self.consume()?;
+						let location = self.location;
+						self.location.clear();
+						Ok(Some(Token::Begin.at(location)))
 					},
 
 					')' => {
-						self.consume();
-						let location = self.location.clone();
-						self.location.next();
-						Some(Ok(token::Kind::End.at(location)))
+						self.consume()?;
+						let location = self.location;
+						self.location.clear();
+						Ok(Some(Token::End.at(location)))
 					},
 
 					'"' => {
-						self.consume();
-						Some(self.read_string())
+						self.consume()?;
+						Ok(Some(self.read_string()?))
 					}
 
 					'-' => {
-						self.consume();
-						match self.peek_char() {
+						self.consume()?;
+						match self.peek_char()? {
 							Some(c) if c.is_digit(10) => {
-								Some(self.read_numeric(10, false))
+								Ok(Some(self.read_numeric(10, false)?))
 							},
 							_ => { // the ident "-"
 								let location = self.location.clone();
-								self.location.next();
-								Some(Ok(Token {
-									location: location,
-									kind: token::Kind::Ident("-".to_string())
-								}))
+								self.location.clear();
+								Ok(Some(Token::Ident("-".to_string()).at(location)))
 							}
 						}
 					},
 
 					c if c.is_digit(10) => {
-						Some(self.read_numeric(10, true))
+						Ok(Some(self.read_numeric(10, true)?))
 					},
 
 					_ => {
-						Some(self.read_ident())
+						Ok(Some(self.read_ident()?))
 					}
 				}
 			},
-			None => None
+			None => Ok(None)
 		}
+	}
+}
+
+impl<R: Iterator<Item = io::Result<char>>> Iterator for Lexer<R> {
+	type Item = Result<Located<Token>>;
+
+	fn next(&mut self) -> Option<Result<Located<Token>>> {
+		self.read_token().transpose()
 	}
 }

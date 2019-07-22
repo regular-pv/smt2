@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::convert::TryFrom;
+use utf8_decode::UnsafeDecoder;
+use source_span::Position;
 use super::*;
 use super::error::InternalError;
 
@@ -14,9 +16,8 @@ pub struct Internal<L, C: Clone + PartialEq, F: Function> {
 }
 
 impl<L, C: Clone + PartialEq, F: Function> Internal<L, C, F> {
-    fn lexer(&mut self) -> Peekable<Lexer<Decoder<std::io::Bytes<&mut std::process::ChildStdout>>, u32>> {
-        let id = self.server.id();
-        Lexer::new(Decoder::new(self.server.stdout.as_mut().unwrap().by_ref().bytes()), id, Cursor::default()).peekable()
+    fn lexer(&mut self) -> Peekable<Lexer<UnsafeDecoder<std::io::Bytes<&mut std::process::ChildStdout>>>> {
+        Lexer::new(UnsafeDecoder::new(self.server.stdout.as_mut().unwrap().by_ref().bytes()), Position::default()).peekable()
         // Lexer::new(Decoder::new_verbose(self.server.stdout.as_mut().unwrap().by_ref().bytes()), id, Cursor::default()).peekable()
     }
 }
@@ -110,12 +111,12 @@ where L: fmt::Display, C: fmt::Display {
 
 impl<L, C: Constant, F: Function> Compiler for Internal<L, C, F> {
     /// Find the ident for the iven syntax symbol.
-    fn ident_of_symbol<File: Clone>(&self, sym: &syntax::Symbol<File>) -> Option<Ident> {
+    fn ident_of_symbol(&self, sym: &syntax::Symbol) -> Option<Ident> {
         Some(Ident::from_syntax(sym))
     }
 
     /// Find the ident for the given syntax ident.
-    fn ident<File: Clone>(&self, id: &syntax::Ident<File>) -> Option<Ident> {
+    fn ident(&self, id: &syntax::Ident) -> Option<Ident> {
         if id.indexes.is_empty() {
             self.ident_of_symbol(&id.id)
         } else {

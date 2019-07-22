@@ -3,11 +3,17 @@ use super::*;
 pub enum Error<L, C: Clone + PartialEq, S: Sort, F: Function> {
     IO(std::io::Error),
     Server(String),
-    Syntax(syntax::Error<u32>),
-    Compile(crate::error::Error<Client<L, C, S, F>, u32>),
+    Syntax(Located<syntax::Error>),
+    Compile(Located<crate::error::Error<Client<L, C, S, F>>>),
     UnknownSort,
     UnknownUserFunction(F),
     UnknownFunction(Ident)
+}
+
+impl<L, C: Clone + PartialEq, S: Sort, F: Function> Error<L, C, S, F> {
+    pub fn at(self, loc: Span) -> Located<Error<L, C, S, F>> {
+        Located::new(self, loc)
+    }
 }
 
 impl<L, C: Clone + PartialEq, S: Sort, F: Function> From<std::io::Error> for Error<L, C, S, F> {
@@ -16,9 +22,9 @@ impl<L, C: Clone + PartialEq, S: Sort, F: Function> From<std::io::Error> for Err
     }
 }
 
-impl<L, C: Clone + PartialEq, S: Sort, F: Function> From<syntax::Error<u32>> for Error<L, C, S, F> {
-    fn from(e: syntax::Error<u32>) -> Error<L, C, S, F> {
-        if let syntax::error::Kind::Server(message) = e.kind {
+impl<L, C: Clone + PartialEq, S: Sort, F: Function> From<Located<syntax::Error>> for Error<L, C, S, F> {
+    fn from(e: Located<syntax::Error>) -> Error<L, C, S, F> {
+        if let syntax::Error::Server(message) = *e {
             Error::Server(message)
         } else {
             Error::Syntax(e)
@@ -43,8 +49,8 @@ impl<L: fmt::Display, C: Clone + PartialEq, S: Sort + fmt::Display, F: Function 
 pub enum InternalError<L, C: Clone + PartialEq, F: Function> {
     IO(std::io::Error),
     Server(String),
-    Syntax(syntax::Error<u32>),
-    Compile(crate::error::Error<Internal<L, C, F>, u32>)
+    Syntax(Located<syntax::Error>),
+    Compile(Located<crate::error::Error<Internal<L, C, F>>>)
 }
 
 impl<L, C: Clone + PartialEq, F: Function> From<std::io::Error> for InternalError<L, C, F> {
@@ -53,9 +59,9 @@ impl<L, C: Clone + PartialEq, F: Function> From<std::io::Error> for InternalErro
     }
 }
 
-impl<L, C: Clone + PartialEq, F: Function> From<syntax::Error<u32>> for InternalError<L, C, F> {
-    fn from(e: syntax::Error<u32>) -> InternalError<L, C, F> {
-        if let syntax::error::Kind::Server(message) = e.kind {
+impl<L, C: Clone + PartialEq, F: Function> From<Located<syntax::Error>> for InternalError<L, C, F> {
+    fn from(e: Located<syntax::Error>) -> InternalError<L, C, F> {
+        if let syntax::Error::Server(message) = *e {
             InternalError::Server(message)
         } else {
             InternalError::Syntax(e)
@@ -63,8 +69,8 @@ impl<L, C: Clone + PartialEq, F: Function> From<syntax::Error<u32>> for Internal
     }
 }
 
-impl<L, C: Clone + PartialEq, F: Function> From<crate::error::Error<Internal<L, C, F>, u32>> for InternalError<L, C, F> {
-    fn from(e: crate::error::Error<Internal<L, C, F>, u32>) -> InternalError<L, C, F> {
+impl<L, C: Clone + PartialEq, F: Function> From<Located<crate::error::Error<Internal<L, C, F>>>> for InternalError<L, C, F> {
+    fn from(e: Located<crate::error::Error<Internal<L, C, F>>>) -> InternalError<L, C, F> {
         InternalError::Compile(e)
     }
 }

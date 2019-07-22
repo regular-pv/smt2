@@ -1,11 +1,17 @@
 use std::fmt;
-use crate::Location;
+use crate::Located;
 use super::*;
 
 pub type Result = std::fmt::Result;
 
 pub trait Display {
     fn fmt(&self, f: &mut Formatter) -> Result;
+}
+
+impl<T: Display> Display for Located<T> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        (*self).fmt(f)
+    }
 }
 
 pub struct Formatter<'f, 'a> {
@@ -62,7 +68,7 @@ impl<'f, 'a> Formatter<'f, 'a> {
         write!(self.f, "{}", name)
     }
 
-    pub fn symbol<F: Clone>(&mut self, sym: &Symbol<F>) -> Result {
+    pub fn symbol(&mut self, sym: &Symbol) -> Result {
         self.next()?;
         write!(self.f, "{}", sym)
     }
@@ -105,19 +111,19 @@ impl<'f, 'a> Formatter<'f, 'a> {
     }
 }
 
-impl<F: Clone> Display for Symbol<F> {
+impl Display for Symbol {
     fn fmt(&self, f: &mut Formatter) -> Result {
         f.symbol(self)
     }
 }
 
-impl<F: Clone> Display for Ident<F> {
+impl Display for Ident {
     fn fmt(&self, f: &mut Formatter) -> Result {
         f.symbol(&self.id)
     }
 }
 
-impl<F: Clone> Display for Sort<F> {
+impl Display for Sort {
     fn fmt(&self, f: &mut Formatter) -> Result {
         if self.parameters.is_empty() {
             self.id.fmt(f)
@@ -130,10 +136,10 @@ impl<F: Clone> Display for Sort<F> {
     }
 }
 
-impl<F: Clone> Display for Term<F> {
+impl Display for Term {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        use TermKind::*;
-        match &self.kind {
+        use Term::*;
+        match self {
             Ident(id) => id.fmt(f),
             Let { bindings, body } => {
                 f.begin()?;
@@ -177,7 +183,7 @@ impl<F: Clone> Display for Term<F> {
     }
 }
 
-impl<F: Clone> Display for MatchCase<F> {
+impl Display for MatchCase {
     fn fmt(&self, f: &mut Formatter) -> Result {
         f.begin()?;
         self.pattern.fmt(f)?;
@@ -186,7 +192,7 @@ impl<F: Clone> Display for MatchCase<F> {
     }
 }
 
-impl<F: Clone> Display for Pattern<F> {
+impl Display for Pattern {
     fn fmt(&self, f: &mut Formatter) -> Result {
         if self.args.is_empty() {
             self.constructor.fmt(f)
@@ -199,7 +205,7 @@ impl<F: Clone> Display for Pattern<F> {
     }
 }
 
-impl<F: Clone> Display for Binding<F> {
+impl Display for Binding {
     fn fmt(&self, f: &mut Formatter) -> Result {
         f.begin()?;
         self.id.fmt(f)?;
@@ -208,7 +214,7 @@ impl<F: Clone> Display for Binding<F> {
     }
 }
 
-impl<F: Clone> Display for SortedVar<F> {
+impl Display for SortedVar {
     fn fmt(&self, f: &mut Formatter) -> Result {
         f.begin()?;
         self.id.fmt(f)?;

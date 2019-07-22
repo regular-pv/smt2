@@ -1,21 +1,7 @@
 use std::fmt;
+use source_span::Span;
 
-use super::{Location, Localisable};
-
-/**
- * Token
- */
-#[derive(Clone, Debug)]
-pub struct Token<F: Clone> {
-	pub location: Location<F>,
-	pub kind: Kind
-}
-
-impl<F: Clone> Localisable<F> for Token<F> {
-	fn location(&self) -> &Location<F> {
-		&self.location
-	}
-}
+use super::Located;
 
 /**
  * Litteral constants.
@@ -31,7 +17,7 @@ pub enum Litteral {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub enum Kind {
+pub enum Token {
 	/**
 	 * End of file token.
 	 */
@@ -58,24 +44,15 @@ pub enum Kind {
 	Litteral(Litteral),
 }
 
-impl Kind {
-	pub fn at<F: Clone>(self, location: Location<F>) -> Token<F> {
-		Token {
-			location: location,
-			kind: self
-		}
+impl Token {
+	pub fn at(self, span: Span) -> Located<Token> {
+		Located::new(self, span)
 	}
 }
 
-impl<F: Clone> fmt::Display for Token<F> {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		self.kind.fmt(f)
-    }
-}
-
-impl fmt::Display for Kind {
+impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		use self::Kind::*;
+		use self::Token::*;
 		match self {
 			EndOfFile => write!(f, "<end of file>"),
 			Begin => write!(f, "("),

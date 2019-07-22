@@ -1,8 +1,9 @@
 use std::fmt;
+use source_span::Span;
 use crate::{
-    Location,
+    Located,
     Result,
-    error,
+    Error,
     Environment,
     Compiler,
     Term,
@@ -45,11 +46,11 @@ pub struct Declaration<E: Environment> {
     pub return_sort: GroundSort<E::Sort>
 }
 
-pub fn compile_check_sat<E: Environment, F: Clone>(_env: &E, r: &syntax::CheckSat<F>) -> Result<CheckSat, E, F> {
-    Ok(r.as_ref().clone())
+pub fn compile_check_sat<E: Environment>(_env: &E, r: &Located<syntax::CheckSat>) -> Result<CheckSat, E> {
+    Ok((**r).clone())
 }
 
-pub fn compile_model<E: Compiler, F: Clone>(env: &E, ast: &syntax::Model<F>) -> Result<Model<E>, E, F> where E::Function: Function<E> {
+pub fn compile_model<E: Compiler>(env: &E, ast: &syntax::Model) -> Result<Model<E>, E> where E::Function: Function<E> {
     let mut compiled_definitions = Vec::with_capacity(ast.definitions.len());
     for def in ast.definitions.iter() {
         compiled_definitions.push(compile_definition(env, def)?);
@@ -60,7 +61,7 @@ pub fn compile_model<E: Compiler, F: Clone>(env: &E, ast: &syntax::Model<F>) -> 
     })
 }
 
-pub fn compile_definition<E: Compiler, F: Clone>(env: &E, ast: &syntax::Definition<F>) -> Result<Definition<E>, E, F> where E::Function: Function<E> {
+pub fn compile_definition<E: Compiler>(env: &E, ast: &syntax::Definition) -> Result<Definition<E>, E> where E::Function: Function<E> {
     let mut compiled_declarations = Vec::with_capacity(ast.declarations.len());
     let mut compiled_bodies = Vec::with_capacity(ast.bodies.len());
 
@@ -85,9 +86,9 @@ pub fn compile_definition<E: Compiler, F: Clone>(env: &E, ast: &syntax::Definiti
     })
 }
 
-pub fn compile_declaration<E: Compiler, F: Clone>(env: &E, ast: &syntax::Declaration<F>) -> Result<Declaration<E>, E, F> where E::Function: Function<E> {
+pub fn compile_declaration<E: Compiler>(env: &E, ast: &Located<syntax::Declaration>) -> Result<Declaration<E>, E> where E::Function: Function<E> {
     let id = compile_symbol(env, &ast.id)?;
-    let f = env.function(&id).ok_or(error::Kind::UnknownFunction(id.clone()).at(ast.location.clone()))?;
+    let f = env.function(&id).ok_or(Error::UnknownFunction(id.clone()).at(ast.span()))?;
 
     let mut compiled_args = Vec::with_capacity(ast.args.len());
     for a in ast.args.iter() {
@@ -109,24 +110,22 @@ impl<E: Environment> fmt::Display for Model<E> where E::Constant: fmt::Display, 
     }
 }
 
-impl<E: Environment, F: Clone> From<Model<E>> for syntax::Model<F> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+impl<E: Environment> From<Model<E>> for Located<syntax::Model> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     fn from(model: Model<E>) -> Self {
-        syntax::Model {
-            location: Location::nowhere(),
+        Located::new(syntax::Model {
             sorts: Vec::new(),
             definitions: model.definitions.into_iter().map(|d| d.into()).collect()
-        }
+        }, Span::default())
     }
 }
 
-impl<E: Environment, F: Clone> From<Definition<E>> for syntax::Definition<F> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+impl<E: Environment> From<Definition<E>> for Located<syntax::Definition> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     fn from(def: Definition<E>) -> Self {
-        syntax::Definition {
-            location: Location::nowhere(),
+        Located::new(syntax::Definition {
             rec: def.rec,
             declarations: def.declarations.into_iter().map(|d| d.into()).collect(),
             bodies: def.bodies.into_iter().map(|b| b.into()).collect()
-        }
+        }, Span::default())
     }
 }
 
@@ -162,13 +161,12 @@ impl<E: Environment> fmt::Display for Definition<E> where E::Constant: fmt::Disp
     }
 }
 
-impl<E: Environment, F: Clone> From<Declaration<E>> for syntax::Declaration<F> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
+impl<E: Environment> From<Declaration<E>> for Located<syntax::Declaration> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     fn from(decl: Declaration<E>) -> Self {
-        syntax::Declaration {
-            location: Location::nowhere(),
-            id: syntax::Symbol::format(decl.f),
+        Located::new(syntax::Declaration {
+            id: Located::new(syntax::Symbol::format(decl.f), Span::default()),
             args: decl.args.into_iter().map(|a| a.into()).collect(),
             return_sort: decl.return_sort.into()
-        }
+        }, Span::default())
     }
 }

@@ -1,45 +1,36 @@
 use std::fmt;
-
-use super::{Location, Localisable, Located};
 use crate::PList;
+use super::Located;
 
 /**
  * Symbol.
  */
 #[derive(Clone, Debug)]
-pub struct Symbol<F: Clone> {
-    pub location: Location<F>,
+pub struct Symbol {
     pub id: String
 }
 
-impl<F: Clone> Symbol<F> {
-    pub fn format<T: fmt::Display>(t: T) -> Symbol<F> {
+impl Symbol {
+    pub fn format<T: fmt::Display>(t: T) -> Symbol {
         Symbol {
-            location: Location::nowhere(),
             id: format!("{}", t)
         }
     }
 }
 
-impl<F: Clone> Localisable<F> for Symbol<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
-impl<F: Clone> PartialEq<str> for Symbol<F> {
+impl PartialEq<str> for Symbol {
     fn eq(&self, other: &str) -> bool {
         self.id == other
     }
 }
 
-impl<F: Clone> PartialEq<String> for Symbol<F> {
+impl PartialEq<String> for Symbol {
     fn eq(&self, other: &String) -> bool {
         self.id == *other
     }
 }
 
-impl<F: Clone> fmt::Display for Symbol<F> {
+impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.id)
     }
@@ -51,26 +42,14 @@ impl<F: Clone> fmt::Display for Symbol<F> {
  * <index> ::= <numeral> | <symbol>
  */
 #[derive(Clone, Debug)]
-pub struct Index<F: Clone> {
-    pub location: Location<F>,
-    pub kind: IndexKind<F>
-}
-
-impl<F: Clone> fmt::Display for Index<F> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum IndexKind<F: Clone> {
+pub enum Index {
     Numeral(i64),
-    Symbol(Symbol<F>)
+    Symbol(Symbol)
 }
 
-impl<F: Clone> fmt::Display for IndexKind<F> {
+impl fmt::Display for Index {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use IndexKind::*;
+        use Index::*;
         match self {
             Numeral(i) => write!(f, "{}", i),
             Symbol(s) => write!(f, "{}", s)
@@ -84,29 +63,22 @@ impl<F: Clone> fmt::Display for IndexKind<F> {
  * <identifier> ::= <symbol> | ( _ <symbol> <index>+ )
  */
 #[derive(Clone, Debug)]
-pub struct Ident<F: Clone> {
-    pub location: Location<F>,
-    pub id: Symbol<F>,
-    pub indexes: Vec<Index<F>>
+pub struct Ident {
+    pub id: Located<Symbol>,
+    pub indexes: Vec<Located<Index>>
 }
 
-impl<F: Clone> From<Symbol<F>> for Ident<F> {
-    fn from(sym: Symbol<F>) -> Self {
-        Ident {
-            location: sym.location.clone(),
+impl From<Located<Symbol>> for Located<Ident> {
+    fn from(sym: Located<Symbol>) -> Self {
+        let span = sym.span();
+        Located::new(Ident {
             id: sym,
             indexes: Vec::new()
-        }
+        }, span)
     }
 }
 
-impl<F: Clone> Localisable<F> for Ident<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
-impl<F: Clone> fmt::Display for Ident<F> {
+impl fmt::Display for Ident {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.indexes.is_empty() {
             self.id.fmt(f)
@@ -117,18 +89,11 @@ impl<F: Clone> fmt::Display for Ident<F> {
 }
 
 #[derive(Clone)]
-pub struct Keyword<F: Clone> {
-    pub location: Location<F>,
+pub struct Keyword {
     pub id: String
 }
 
-impl<F: Clone> Localisable<F> for Keyword<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
-impl<F: Clone> fmt::Display for Keyword<F> {
+impl fmt::Display for Keyword {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.id.fmt(f)
     }
@@ -138,13 +103,12 @@ impl<F: Clone> fmt::Display for Keyword<F> {
  * <attribute> ::= <keyword> | <keyword> <attribute_value>
  */
 #[derive(Clone)]
-pub struct Attribute<F: Clone> {
-    pub location: Location<F>,
-    pub key: Keyword<F>,
-    pub value: Option<AttributeValue<F>>
+pub struct Attribute {
+    pub key: Located<Keyword>,
+    pub value: Option<Located<AttributeValue>>
 }
 
-impl<F: Clone> fmt::Display for Attribute<F> {
+impl fmt::Display for Attribute {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.value {
             Some(value) => {
@@ -155,43 +119,19 @@ impl<F: Clone> fmt::Display for Attribute<F> {
     }
 }
 
-impl<F: Clone> Localisable<F> for Attribute<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
 /**
  * <attribute_value> ::= <spec_const> | <symbol> | <s_expr*>
  */
 #[derive(Clone)]
-pub struct AttributeValue<F: Clone> {
-    pub location: Location<F>,
-    pub kind: AttributeValueKind<F>
-}
-
-impl<F: Clone> fmt::Display for AttributeValue<F> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-impl<F: Clone> Localisable<F> for AttributeValue<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
-#[derive(Clone)]
-pub enum AttributeValueKind<F: Clone> {
+pub enum AttributeValue {
     // Const(Constant),
-    Sym(Symbol<F>),
-    List(Vec<SExpr<F>>)
+    Sym(Located<Symbol>),
+    List(Vec<Located<SExpr>>)
 }
 
-impl<F: Clone> fmt::Display for AttributeValueKind<F> {
+impl fmt::Display for AttributeValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use AttributeValueKind::*;
+        use AttributeValue::*;
         match self {
             // Const(c) => c.fmt(f),
             Sym(s) => s.fmt(f),
@@ -204,28 +144,16 @@ impl<F: Clone> fmt::Display for AttributeValueKind<F> {
  * <s_expr> ::= <spec_const> | <symbol> | <keyword> | <s_expr*>
  */
 #[derive(Clone)]
-pub struct SExpr<F: Clone> {
-    pub location: Location<F>,
-    pub kind: SExprKind<F>
-}
-
-impl<F: Clone> fmt::Display for SExpr<F> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-#[derive(Clone)]
-pub enum SExprKind<F: Clone> {
+pub enum SExpr {
     // Const(Constant),
-    Sym(Symbol<F>),
-    Keyword(Keyword<F>),
-    List(Vec<SExpr<F>>)
+    Sym(Located<Symbol>),
+    Keyword(Located<Keyword>),
+    List(Vec<Located<SExpr>>)
 }
 
-impl<F: Clone> fmt::Display for SExprKind<F> {
+impl fmt::Display for SExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use SExprKind::*;
+        use SExpr::*;
         match self {
             // Const(c) => c.fmt(f),
             Sym(s) => s.fmt(f),
@@ -239,19 +167,12 @@ impl<F: Clone> fmt::Display for SExprKind<F> {
  * <sort> ::= <identifier> | (<identifier> <sort>+)
  */
 #[derive(Clone)]
-pub struct Sort<F: Clone> {
-    pub location: Location<F>,
-    pub id: Ident<F>,
-    pub parameters: Vec<Sort<F>>
+pub struct Sort {
+    pub id: Located<Ident>,
+    pub parameters: Vec<Located<Sort>>
 }
 
-impl<F: Clone> Localisable<F> for Sort<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
-impl<F: Clone> fmt::Display for Sort<F> {
+impl fmt::Display for Sort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.parameters.is_empty() {
             self.id.fmt(f)
@@ -268,52 +189,34 @@ impl<F: Clone> fmt::Display for Sort<F> {
  *            | ( exists ( <sorted_var>+ ) <term> )
  */
 #[derive(Clone)]
-pub struct Term<F: Clone> {
-    pub location: Location<F>,
-    pub kind: TermKind<F>
-}
-
-impl<F: Clone> Localisable<F> for Term<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
-impl<F: Clone> fmt::Display for Term<F> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-#[derive(Clone)]
-pub enum TermKind<F: Clone> {
+pub enum Term {
     // Const(Constant),
-    Ident(Ident<F>),
+    Ident(Located<Ident>),
     Let {
-        bindings: Vec<Binding<F>>,
-        body: Box<Term<F>>
+        bindings: Vec<Located<Binding>>,
+        body: Box<Located<Term>>
     },
     Forall {
-        vars: Vec<SortedVar<F>>,
-        body: Box<Term<F>>
+        vars: Vec<Located<SortedVar>>,
+        body: Box<Located<Term>>
     },
     Exists {
-        vars: Vec<SortedVar<F>>,
-        body: Box<Term<F>>
+        vars: Vec<Located<SortedVar>>,
+        body: Box<Located<Term>>
     },
     Match {
-        term: Box<Term<F>>,
-        cases: Vec<MatchCase<F>>
+        term: Box<Located<Term>>,
+        cases: Vec<Located<MatchCase>>
     },
     Apply {
-        id: Ident<F>,
-        args: Box<Vec<Term<F>>>
+        id: Located<Ident>,
+        args: Box<Vec<Located<Term>>>
     }
 }
 
-impl<F: Clone> fmt::Display for TermKind<F> {
+impl fmt::Display for Term {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use TermKind::*;
+        use Term::*;
         match self {
             // Const(c) => c.fmt(f),
             Ident(id) => id.fmt(f),
@@ -327,26 +230,24 @@ impl<F: Clone> fmt::Display for TermKind<F> {
 }
 
 #[derive(Clone)]
-pub struct MatchCase<F: Clone> {
-    pub location: Location<F>,
-    pub pattern: Pattern<F>,
-    pub term: Box<Term<F>>
+pub struct MatchCase {
+    pub pattern: Located<Pattern>,
+    pub term: Box<Located<Term>>
 }
 
-impl<F: Clone> fmt::Display for MatchCase<F> {
+impl fmt::Display for MatchCase {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({} {})", self.pattern, self.term)
     }
 }
 
 #[derive(Clone)]
-pub struct Pattern<F: Clone> {
-    pub location: Location<F>,
-    pub constructor: Symbol<F>,
-    pub args: Vec<Symbol<F>>
+pub struct Pattern {
+    pub constructor: Located<Symbol>,
+    pub args: Vec<Located<Symbol>>
 }
 
-impl<F: Clone> fmt::Display for Pattern<F> {
+impl fmt::Display for Pattern {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.args.is_empty() {
             write!(f, "{}", self.constructor)
@@ -360,13 +261,12 @@ impl<F: Clone> fmt::Display for Pattern<F> {
  * <var_binding> ::= ( <symbol> <term> )
  */
 #[derive(Clone)]
-pub struct Binding<F: Clone> {
-    pub location: Location<F>,
-    pub id: Symbol<F>,
-    pub value: Box<Term<F>>
+pub struct Binding {
+    pub id: Located<Symbol>,
+    pub value: Box<Located<Term>>
 }
 
-impl<F: Clone> fmt::Display for Binding<F> {
+impl fmt::Display for Binding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({} {})", self.id, self.value)
     }
@@ -376,13 +276,12 @@ impl<F: Clone> fmt::Display for Binding<F> {
  * <sorted_var> ::= ( <symbol> <sort> )
  */
 #[derive(Clone)]
-pub struct SortedVar<F: Clone> {
-    pub location: Location<F>,
-    pub id: Symbol<F>,
-    pub sort: Sort<F>
+pub struct SortedVar {
+    pub id: Located<Symbol>,
+    pub sort: Located<Sort>
 }
 
-impl<F: Clone> fmt::Display for SortedVar<F> {
+impl fmt::Display for SortedVar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({} {})", self.id, self.sort)
     }
@@ -393,19 +292,12 @@ impl<F: Clone> fmt::Display for SortedVar<F> {
  *                  | ( par ( <symbol>+ ) <constructor_dec>+ )
  */
 #[derive(Clone)]
-pub struct DataTypeDeclaration<F: Clone> {
-    pub location: Location<F>,
-    pub parameters: Vec<Symbol<F>>,
-    pub constructors: Vec<ConstructorDeclaration<F>>
+pub struct DataTypeDeclaration {
+    pub parameters: Vec<Located<Symbol>>,
+    pub constructors: Vec<Located<ConstructorDeclaration>>
 }
 
-impl<F: Clone> Localisable<F> for DataTypeDeclaration<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
-impl<F: Clone> fmt::Display for DataTypeDeclaration<F> {
+impl fmt::Display for DataTypeDeclaration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({})", PList(&self.constructors))
     }
@@ -415,19 +307,12 @@ impl<F: Clone> fmt::Display for DataTypeDeclaration<F> {
  * <constructor_dec> ::= ( <symbol> <selector_dec>* )
  */
 #[derive(Clone)]
-pub struct ConstructorDeclaration<F: Clone> {
-    pub location: Location<F>,
-    pub id: Symbol<F>,
-    pub selectors: Vec<SelectorDeclaration<F>>
+pub struct ConstructorDeclaration {
+    pub id: Located<Symbol>,
+    pub selectors: Vec<Located<SelectorDeclaration>>
 }
 
-impl<F: Clone> Localisable<F> for ConstructorDeclaration<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
-impl<F: Clone> fmt::Display for ConstructorDeclaration<F> {
+impl fmt::Display for ConstructorDeclaration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({} {})", self.id, PList(&self.selectors))
     }
@@ -437,19 +322,12 @@ impl<F: Clone> fmt::Display for ConstructorDeclaration<F> {
  * <selector_dec> ::= ( <symbol> <sort> )
  */
 #[derive(Clone)]
-pub struct SelectorDeclaration<F: Clone> {
-    pub location: Location<F>,
-    pub id: Symbol<F>,
-    pub sort: Sort<F>
+pub struct SelectorDeclaration {
+    pub id: Located<Symbol>,
+    pub sort: Located<Sort>
 }
 
-impl<F: Clone> Localisable<F> for SelectorDeclaration<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
-impl<F: Clone> fmt::Display for SelectorDeclaration<F> {
+impl fmt::Display for SelectorDeclaration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({} {})", self.id, self.sort)
     }
@@ -459,19 +337,12 @@ impl<F: Clone> fmt::Display for SelectorDeclaration<F> {
  * <sort_dec> ::= ( <symbol> <numeral> )
  */
 #[derive(Clone)]
-pub struct SortDeclaration<F: Clone> {
-    pub location: Location<F>,
-    pub id: Symbol<F>,
-    pub arity: Located<i64, F>
+pub struct SortDeclaration {
+    pub id: Located<Symbol>,
+    pub arity: Located<i64>
 }
 
-impl<F: Clone> Localisable<F> for SortDeclaration<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
-impl<F: Clone> fmt::Display for SortDeclaration<F> {
+impl fmt::Display for SortDeclaration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({} {})", self.id, self.arity)
     }
@@ -488,40 +359,22 @@ impl<F: Clone> fmt::Display for SortDeclaration<F> {
  *                | ( set-logic <symbol> )
  */
 #[derive(Clone)]
-pub struct Command<F: Clone> {
-    pub location: Location<F>,
-    pub kind: CommandKind<F>
-}
-
-impl<F: Clone> Localisable<F> for Command<F> {
-    fn location(&self) -> &Location<F> {
-        &self.location
-    }
-}
-
-impl<F: Clone> fmt::Display for Command<F> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-#[derive(Clone)]
-pub enum CommandKind<F: Clone> {
-    Assert(Term<F>),
+pub enum Command {
+    Assert(Located<Term>),
     CheckSat,
-    DeclareConst(Symbol<F>, Sort<F>),
-    DeclareDatatype(Symbol<F>, DataTypeDeclaration<F>),
-    DeclareDatatypes(Vec<SortDeclaration<F>>, Vec<DataTypeDeclaration<F>>),
-    DeclareFun(Symbol<F>, Vec<Sort<F>>, Sort<F>),
+    DeclareConst(Located<Symbol>, Located<Sort>),
+    DeclareDatatype(Located<Symbol>, Located<DataTypeDeclaration>),
+    DeclareDatatypes(Vec<Located<SortDeclaration>>, Vec<Located<DataTypeDeclaration>>),
+    DeclareFun(Located<Symbol>, Vec<Located<Sort>>, Located<Sort>),
     Exit,
     GetModel,
-    SetInfo(Attribute<F>),
-    SetLogic(Symbol<F>)
+    SetInfo(Located<Attribute>),
+    SetLogic(Located<Symbol>)
 }
 
-impl<F: Clone> fmt::Display for CommandKind<F> {
+impl fmt::Display for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use CommandKind::*;
+        use Command::*;
         match self {
             Assert(t) => write!(f, "(assert {})", t),
             CheckSat => write!(f, "(check-sat)"),

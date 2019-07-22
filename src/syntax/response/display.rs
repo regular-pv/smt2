@@ -3,13 +3,13 @@ use super::*;
 
 type Result = crate::syntax::display::Result;
 
-impl<F: Clone> syntax::Display for Model<F> {
+impl syntax::Display for Model {
     fn fmt(&self, f: &mut syntax::Formatter) -> Result {
         f.list(&self.definitions)
     }
 }
 
-impl<F: Clone> syntax::Display for Definition<F> {
+impl syntax::Display for Definition {
     fn fmt(&self, f: &mut syntax::Formatter) -> Result {
         f.begin()?;
 
@@ -47,7 +47,7 @@ impl<F: Clone> syntax::Display for Definition<F> {
     }
 }
 
-impl<F: Clone> syntax::Display for Declaration<F> {
+impl syntax::Display for Declaration {
     fn fmt(&self, f: &mut syntax::Formatter) -> Result {
         f.begin()?;
         f.symbol(&self.id)?;

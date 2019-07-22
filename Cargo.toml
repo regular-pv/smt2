@@ -4,6 +4,6 @@ version = "0.1.0"
 authors = ["Timothée Haudebourg <timothee.haudebourg@irisa.fr>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+utf8-decode = "*"
+source-span = { path = "/home/timothee/documents/projects/hemisemi/utils/parsing/source-span" }

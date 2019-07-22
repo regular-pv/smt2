@@ -329,8 +329,9 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
                     InternalError::Server(msg) => Error::Server(msg),
                     InternalError::Syntax(e) => Error::Syntax(e),
                     InternalError::Compile(e) => {
-                        use crate::error::Kind::*;
-                        let kind = match e.kind {
+                        use crate::Error::*;
+                        let location = e.span();
+                        let kind = match *e {
                             UnknownLogic => UnknownLogic,
                             InvalidSymbol(s) => InvalidSymbol(s),
                             InvalidIdent(id) => InvalidIdent(id),
@@ -343,10 +344,7 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
                             TypeAmbiguity => TypeAmbiguity
                         };
 
-                        Error::Compile(crate::error::Error {
-                            location: e.location,
-                            kind: kind
-                        })
+                        Error::Compile(Located::new(kind, location))
                     }
                 })
             }

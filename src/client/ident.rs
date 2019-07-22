@@ -45,7 +45,7 @@ impl Ident {
         Ident::Raw(str.clone())
     }
 
-    pub fn from_syntax<F: Clone>(sym: &syntax::Symbol<F>) -> Ident {
+    pub fn from_syntax(sym: &syntax::Symbol) -> Ident {
         Self::from_string(&sym.id)
     }
 }
