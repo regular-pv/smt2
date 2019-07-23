@@ -124,7 +124,10 @@ pub enum Term<E: Environment> {
         index: usize,
 
         /// non-unique identifier.
-        id: E::Ident
+        id: E::Ident,
+
+        /// sort
+        sort: GroundSort<E::Sort>
     },
     Let {
         bindings: Vec<Binding<E>>,
@@ -158,17 +161,17 @@ impl<E: Environment> Term<E> {
         }
     }
 
-    pub fn sort(&self, env: &E, ctx: &Context<E>) -> GroundSort<E::Sort> {
+    pub fn sort(&self, env: &E) -> GroundSort<E::Sort> {
         use Term::*;
         match self {
             Const(c) => env.const_sort(c),
-            Var { index, .. } => ctx.sort(*index).clone(),
+            Var { sort, .. } => sort.clone(),
             Let { body, .. } => {
-                body.sort(env, ctx)
+                body.sort(env)
             },
             Forall { .. } => env.sort_bool(),
             Exists { .. } => env.sort_bool(),
-            Match { term, .. } => term.sort(env, ctx),
+            Match { term, .. } => term.sort(env),
             Apply { sort, .. } => sort.clone()
         }
     }
@@ -863,10 +866,11 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
         syntax::Term::Ident(id) => {
             let id = compile_ident(env, &id)?;
             match ctx.find(&id) {
-                Some((index, _)) => {
+                Some((index, sort)) => {
                     Ok(Term::Var {
                         index: index,
-                        id: id
+                        id: id,
+                        sort: sort.clone()
                     })
                 },
                 None => {
@@ -957,7 +961,7 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
                         let mut args_types = Vec::with_capacity(args.len());
                         for arg in args.iter() {
                             let term = compile_term(env, ctx, &arg)?;
-                            args_types.push(term.sort(env, ctx));
+                            args_types.push(term.sort(env));
                             compiled_args.push(term);
                         }
 

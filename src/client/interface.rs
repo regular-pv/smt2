@@ -23,7 +23,7 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
             Const(Sorted(c, sort)) => {
                 Ok(Const(Sorted(c.clone(), self.downgrade_ground_sort(sort)?)))
             },
-            Var { index, id } => Ok(Var { index: *index, id: id.clone() }),
+            Var { index, id, sort } => Ok(Var { index: *index, id: id.clone(), sort: self.downgrade_ground_sort(sort)? }),
             Let { bindings, body } => {
                 let mut internal_bindings = Vec::with_capacity(bindings.len());
                 for b in bindings.iter() {
@@ -158,7 +158,7 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
             Const(Sorted(c, sort)) => {
                 Ok(Const(Sorted(c.clone(), self.upgrade_ground_sort(sort)?)))
             },
-            Var { index, id } => Ok(Var { index: *index, id: id.clone() }),
+            Var { index, id, sort } => Ok(Var { index: *index, id: id.clone(), sort: self.upgrade_ground_sort(sort)? }),
             Let { bindings, body } => {
                 let mut internal_bindings = Vec::with_capacity(bindings.len());
                 for b in bindings.iter() {
