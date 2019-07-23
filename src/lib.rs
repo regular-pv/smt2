@@ -514,7 +514,7 @@ trait Solvable<T, E: Environment> {
 }
 
 impl<E: Environment> Solvable<E::Sort, E> for Located<E::Ident> {
-    fn resolve(mut self, env: &E) -> E::Sort {
+    fn resolve(self, env: &E) -> E::Sort {
         match env.sort(&self.into_inner()) {
             Some(sort) => sort,
             None => panic!("broken sort reference!")
@@ -523,7 +523,7 @@ impl<E: Environment> Solvable<E::Sort, E> for Located<E::Ident> {
 }
 
 impl<E: Environment, U, T: Solvable<U, E>> Solvable<AbstractGroundSort<U>, E> for AbstractGroundSort<T> {
-    fn resolve(mut self, env: &E) -> AbstractGroundSort<U> {
+    fn resolve(self, env: &E) -> AbstractGroundSort<U> {
         use AbstractGroundSort::*;
         match self {
             Sort { sort, mut parameters } => {
@@ -704,7 +704,7 @@ pub enum Command<E: Environment> {
 
 impl<E: Server> Command<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     /// Execute the command on the given environment.
-    pub fn exec(mut self, env: &mut E) -> ExecResult<(), E::Error> {
+    pub fn exec(self, env: &mut E) -> ExecResult<(), E::Error> {
         use Command::*;
         match self {
             Assert(term) => env.assert(&term)?,
@@ -919,12 +919,13 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
                 body: Box::new(body)
             })
         },
-        syntax::Term::Match { term, cases } => {
+        syntax::Term::Match { .. } => {
             panic!("TODO compile match")
         },
         syntax::Term::Apply { id, args } => {
+            let id_loc = id.span();
             let id = compile_ident(env, &id)?;
-            match compile_function(env, &id, &loc) {
+            match compile_function(env, &id, &id_loc) {
                 Ok(fun) => {
                     let (arity_min, arity_max) = fun.arity(env);
                     if args.len() < arity_min || args.len() > arity_max {
@@ -932,7 +933,7 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
                     } else {
                         let mut compiled_args = Vec::with_capacity(args.len());
                         let mut args_types = Vec::with_capacity(args.len());
-                        for (i, arg) in args.iter().enumerate() {
+                        for arg in args.iter() {
                             let term = compile_term(env, ctx, &arg)?;
                             args_types.push(term.sort(env, ctx));
                             compiled_args.push(term);

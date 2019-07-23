@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::convert::TryFrom;
 use utf8_decode::UnsafeDecoder;
 use source_span::Position;
 use super::*;
@@ -85,7 +84,7 @@ where L: fmt::Display, C: fmt::Display {
     }
 
     /// Define previously declared sort.
-    fn define_sort(&mut self, id: &Self::Ident, def: &DataTypeDeclaration<Self>) -> ExecResult<(), Self::Error> {
+    fn define_sort(&mut self, _id: &Self::Ident, _def: &DataTypeDeclaration<Self>) -> ExecResult<(), Self::Error> {
         panic!("TODO define_sort")
     }
 
@@ -125,7 +124,7 @@ impl<L, C: Constant, F: Function> Compiler for Internal<L, C, F> {
     }
 
     /// Find the logic with the given id.
-    fn logic(&self, id: &Ident) -> Option<Self::Logic> {
+    fn logic(&self, _id: &Ident) -> Option<Self::Logic> {
         None
     }
 

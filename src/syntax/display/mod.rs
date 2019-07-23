@@ -1,4 +1,3 @@
-use std::fmt;
 use crate::Located;
 use super::*;
 
@@ -10,7 +9,7 @@ pub trait Display {
 
 impl<T: Display> Display for Located<T> {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        (*self).fmt(f)
+        self.as_ref().fmt(f)
     }
 }
 
@@ -102,11 +101,11 @@ impl<'f, 'a> Formatter<'f, 'a> {
         self.begin()?;
         self.tab();
         for e in list {
-            self.split();
+            self.split()?;
             e.fmt(self)?;
         }
         self.backtab();
-        self.split();
+        self.split()?;
         self.end()
     }
 }

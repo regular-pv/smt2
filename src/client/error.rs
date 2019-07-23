@@ -24,8 +24,8 @@ impl<L, C: Clone + PartialEq, S: Sort, F: Function> From<std::io::Error> for Err
 
 impl<L, C: Clone + PartialEq, S: Sort, F: Function> From<Located<syntax::Error>> for Error<L, C, S, F> {
     fn from(e: Located<syntax::Error>) -> Error<L, C, S, F> {
-        if let syntax::Error::Server(message) = *e {
-            Error::Server(message)
+        if let syntax::Error::Server(message) = e.as_ref() {
+            Error::Server(message.clone())
         } else {
             Error::Syntax(e)
         }
@@ -61,8 +61,8 @@ impl<L, C: Clone + PartialEq, F: Function> From<std::io::Error> for InternalErro
 
 impl<L, C: Clone + PartialEq, F: Function> From<Located<syntax::Error>> for InternalError<L, C, F> {
     fn from(e: Located<syntax::Error>) -> InternalError<L, C, F> {
-        if let syntax::Error::Server(message) = *e {
-            InternalError::Server(message)
+        if let syntax::Error::Server(message) = e.as_ref() {
+            InternalError::Server(message.clone())
         } else {
             InternalError::Syntax(e)
         }

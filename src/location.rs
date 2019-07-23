@@ -1,6 +1,6 @@
 use source_span::Span;
 use std::fmt;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 /**
  * Wrap a value to give it a location.

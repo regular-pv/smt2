@@ -5,7 +5,6 @@ use crate::syntax::{
     token,
     Token,
     Parsable,
-    error,
     Error,
     Result,
     peek,
@@ -25,13 +24,13 @@ fn server_error<L>(lexer: &mut Peekable<L>, mut loc: Span) -> Result<Located<Err
 
     let token = consume(lexer)?;
     let id_loc = token.span();
-    match *token {
+    match token.into_inner() {
         Ident(name) => {
             match name.as_str() {
                 "error" => {
                     let token = consume(lexer)?;
                     let message_loc = token.span();
-                    match *token {
+                    match token.into_inner() {
                         Litteral(token::Litteral::String(message)) => {
                             loc = loc.union(consume_token(lexer, End)?);
                             Ok(Error::Server(message).at(loc))
@@ -50,7 +49,7 @@ fn peek_server_error<L>(lexer: &mut Peekable<L>, loc: &Span) -> Result<()> where
     use Token::*;
 
     let token = peek(lexer)?;
-    match *token {
+    match token.as_ref() {
         Ident(name) => {
             match name.as_str() {
                 "error" => Err(server_error(lexer, loc.clone())?),
@@ -67,7 +66,7 @@ impl Parsable for CheckSat {
 
         let token = consume(lexer)?;
         let loc = token.span();
-        match *token {
+        match token.into_inner() {
             Ident(name) => {
                 match name.as_str() {
                     "sat" => {
@@ -98,7 +97,7 @@ impl Parsable for Model {
         let mut definitions;
         let mut sorts = Vec::new();
 
-        match *peek(lexer)? {
+        match peek(lexer)?.as_ref() {
             // this "model" keyword token does not appear in the SMT2-lib specification.
             // however it seems to be pretty standard... In this case we can also have sorts
             // declarations in the model.
@@ -108,11 +107,11 @@ impl Parsable for Model {
                 loop {
                     let token = consume(lexer)?;
                     let item_loc = token.span();
-                    match *token {
+                    match token.into_inner() {
                         Begin => {
                             let token = peek(lexer)?;
                             let id_loc = token.span();
-                            match *token {
+                            match token.as_ref() {
                                 Ident(ref name) => {
                                     match name.as_ref() {
                                         "define-fun" | "define-fun-rec" | "define-funs-rec" => {
@@ -136,7 +135,7 @@ impl Parsable for Model {
                                         unexpected => return Err(Error::UnexpectedToken(Ident(unexpected.to_string()), None).at(id_loc))
                                     }
                                 },
-                                unexpected => return Err(Error::UnexpectedToken(unexpected, None).at(id_loc))
+                                unexpected => return Err(Error::UnexpectedToken(unexpected.clone(), None).at(id_loc))
                             }
                         },
                         End => {
@@ -169,7 +168,7 @@ impl Definition {
         let declarations;
         let bodies;
 
-        match *token {
+        match token.into_inner() {
             Ident(name) => {
                 match name.as_str() {
                     "define-fun" => {
@@ -239,7 +238,7 @@ impl Parsable for Definition {
     fn parse<L>(lexer: &mut Peekable<L>) -> Result<Located<Definition>> where L: Iterator<Item=Result<Located<Token>>> {
         use Token::*;
 
-        let mut loc = consume_token(lexer, Begin)?;
+        let loc = consume_token(lexer, Begin)?;
         Self::parse_at(lexer, loc)
     }
 }

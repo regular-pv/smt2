@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 use std::fmt;
-use std::io::{Read, Write, Bytes};
-use std::fs::File;
-use std::os::unix::io::{AsRawFd, FromRawFd};
+use std::io::{Read, Write};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::iter::Peekable;
@@ -25,7 +23,6 @@ pub mod cvc4;
 pub use error::Error;
 use ident::*;
 use internal::*;
-use interface::*;
 pub use sorted::*;
 
 pub trait Sort: Clone + Hash + Eq {
@@ -92,7 +89,7 @@ impl<L, C: Clone + PartialEq, S: Sort, F: Function> Environment for Client<L, C,
 
 impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F>
 where L: fmt::Display, C: fmt::Display {
-    pub fn new(mut cmd: process::Command, sort_bool: S, cst_true: F, cst_false: F) -> std::io::Result<Client<L, C, S, F>> {
+    pub fn new(mut cmd: process::Command, sort_bool: S, cst_true: F, cst_false: F) -> ExecResult<Client<L, C, S, F>, Error<L, C, S, F>> {
         let server = cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
 
         let ident_bool = Ident::raw("Bool");
@@ -122,8 +119,8 @@ where L: fmt::Display, C: fmt::Display {
             l: PhantomData,
         };
 
-        client.predefined_fun("true", cst_true, FunctionSignature::User { args: Vec::new(), return_sort: client.sort_bool.clone() });
-        client.predefined_fun("false", cst_false, FunctionSignature::User { args: Vec::new(), return_sort: client.sort_bool.clone() });
+        client.predefined_fun("true", cst_true, FunctionSignature::User { args: Vec::new(), return_sort: client.sort_bool.clone() })?;
+        client.predefined_fun("false", cst_false, FunctionSignature::User { args: Vec::new(), return_sort: client.sort_bool.clone() })?;
 
         Ok(client)
     }
@@ -214,8 +211,8 @@ where L: fmt::Display, C: fmt::Display {
     }
 
     /// Define previously declared sort.
-    pub fn define_sort(&mut self, def: &DataTypeDeclaration<Self>) -> ExecResult<(), Error<L, C, S, F>> {
-        let id = self.new_sort_id();
+    pub fn define_sort(&mut self, _def: &DataTypeDeclaration<Self>) -> ExecResult<(), Error<L, C, S, F>> {
+        let _id = self.new_sort_id();
         panic!("TODO define_sort")
     }
 

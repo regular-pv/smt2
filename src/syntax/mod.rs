@@ -265,7 +265,7 @@ impl Parsable for AttributeValue {
 
             unexpected => {
                 consume(lexer)?;
-                return Err(Error::UnexpectedToken(unexpected, None).at(loc))
+                return Err(Error::UnexpectedToken(unexpected.clone(), None).at(loc))
             }
         };
 
@@ -322,7 +322,7 @@ impl Parsable for SExpr {
 
             unexpected => {
                 consume(lexer)?;
-                return Err(Error::UnexpectedToken(unexpected, None).at(loc))
+                return Err(Error::UnexpectedToken(unexpected.clone(), None).at(loc))
             }
         };
 
@@ -336,7 +336,7 @@ impl Parsable for Sort {
         let token = peek(lexer)?;
         let mut loc = token.span();
 
-        match *token {
+        match token.as_ref() {
             Ident(_) => {
                 let id = ast::Ident::parse(lexer)?;
 
@@ -370,7 +370,7 @@ impl Parsable for Sort {
                     parameters: parameters
                 }, loc))
             }
-            unexpected => Err(Error::UnexpectedToken(unexpected, None).at(loc))
+            unexpected => Err(Error::UnexpectedToken(unexpected.clone(), None).at(loc))
         }
     }
 }
@@ -381,12 +381,12 @@ impl Parsable for Term {
         let token = peek(lexer)?;
         let mut loc = token.span();
 
-        let kind = match *token {
+        let kind = match token.as_ref() {
             Begin => {
 				consume(lexer)?;
                 let token = peek(lexer)?;
 
-                match *token {
+                match token.as_ref() {
                     Ident(name) => {
                         match name.as_str() {
                             "let" => {
@@ -442,7 +442,7 @@ impl Parsable for Term {
                         }
                     },
 
-                    unexpected => return Err(Error::UnexpectedToken(unexpected, None).at(loc))
+                    unexpected => return Err(Error::UnexpectedToken(unexpected.clone(), None).at(loc))
                 }
             },
 
@@ -555,12 +555,12 @@ fn parse_numeral<L>(lexer: &mut Peekable<L>) -> Result<Located<i64>> where L: It
     let token = consume(lexer)?;
     let loc = token.span();
 
-    match *token {
+    match token.as_ref() {
         Litteral(token::Litteral::Int(i)) => {
-            Ok(Located::new(i, loc))
+            Ok(Located::new(*i, loc))
         },
         unexpected => {
-            Err(Error::UnexpectedToken(unexpected, None).at(loc))
+            Err(Error::UnexpectedToken(unexpected.clone(), None).at(loc))
         }
     }
 }
@@ -587,7 +587,7 @@ impl Parsable for Command {
 
         let token = consume(lexer)?;
         let name_loc = token.span();
-        let kind = match *token {
+        let kind = match token.as_ref() {
             Ident(ref name) => {
                 match name.as_str() {
                     "assert" => {
@@ -651,7 +651,7 @@ impl Parsable for Command {
                 }
             },
 
-            unexpected => return Err(Error::UnexpectedToken(unexpected, None).at(name_loc))
+            unexpected => return Err(Error::UnexpectedToken(unexpected.clone(), None).at(name_loc))
         };
 
         loc = loc.union(consume_token(lexer, End)?);

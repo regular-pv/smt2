@@ -25,7 +25,7 @@ impl TryFrom<String> for Constant {
     fn try_from(str: String) -> Result<Self, Self::Error> {
         if str.len() > 7 {
             if &str[0..4] == "@uc_" {
-                let mut chars = str.chars().skip(4);
+                let chars = str.chars().skip(4);
                 let mut sort = String::new();
                 let mut in_index = false;
                 let mut index = 0;

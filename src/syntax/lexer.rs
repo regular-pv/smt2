@@ -92,8 +92,7 @@ impl<R: Iterator<Item = io::Result<char>>> Lexer<R> {
 				}
 				_ => {
 					self.consume()?;
-				},
-				_ => break
+				}
 			}
 		}
 

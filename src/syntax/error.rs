@@ -1,6 +1,6 @@
 use std::result;
 use std::fmt;
-use source_span::{Span, Position};
+use source_span::Span;
 use crate::Located;
 use super::Token;
 

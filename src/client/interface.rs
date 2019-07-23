@@ -78,19 +78,19 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
         }
     }
 
-    pub(crate) fn downgrade_case(&self, case: &MatchCase<Self>) -> ExecResult<MatchCase<Internal<L, C, F>>, Error<L, C, S, F>> {
+    pub(crate) fn downgrade_case(&self, _case: &MatchCase<Self>) -> ExecResult<MatchCase<Internal<L, C, F>>, Error<L, C, S, F>> {
         panic!("TODO")
     }
 
-    pub(crate) fn downgrade_pattern(&self, pattern: &Pattern<Self>) -> ExecResult<Pattern<Internal<L, C, F>>, Error<L, C, S, F>> {
+    pub(crate) fn downgrade_pattern(&self, _pattern: &Pattern<Self>) -> ExecResult<Pattern<Internal<L, C, F>>, Error<L, C, S, F>> {
         panic!("TODO")
     }
 
-    pub(crate) fn downgrade_binding(&self, binding: &Binding<Self>) -> ExecResult<Binding<Internal<L, C, F>>, Error<L, C, S, F>> {
+    pub(crate) fn downgrade_binding(&self, _binding: &Binding<Self>) -> ExecResult<Binding<Internal<L, C, F>>, Error<L, C, S, F>> {
         panic!("TODO")
     }
 
-    pub(crate) fn downgrade_sorted_var(&self, x: &SortedVar<Self>) -> ExecResult<SortedVar<Internal<L, C, F>>, Error<L, C, S, F>> {
+    pub(crate) fn downgrade_sorted_var(&self, _x: &SortedVar<Self>) -> ExecResult<SortedVar<Internal<L, C, F>>, Error<L, C, S, F>> {
         panic!("TODO")
     }
 
@@ -213,15 +213,15 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
         }
     }
 
-    pub(crate) fn upgrade_case(&self, case: &MatchCase<Internal<L, C, F>>) -> ExecResult<MatchCase<Self>, Error<L, C, S, F>> {
+    pub(crate) fn upgrade_case(&self, _case: &MatchCase<Internal<L, C, F>>) -> ExecResult<MatchCase<Self>, Error<L, C, S, F>> {
         panic!("TODO")
     }
 
-    pub(crate) fn upgrade_pattern(&self, pattern: &Pattern<Internal<L, C, F>>) -> ExecResult<Pattern<Self>, Error<L, C, S, F>> {
+    pub(crate) fn upgrade_pattern(&self, _pattern: &Pattern<Internal<L, C, F>>) -> ExecResult<Pattern<Self>, Error<L, C, S, F>> {
         panic!("TODO")
     }
 
-    pub(crate) fn upgrade_binding(&self, binding: &Binding<Internal<L, C, F>>) -> ExecResult<Binding<Self>, Error<L, C, S, F>> {
+    pub(crate) fn upgrade_binding(&self, _binding: &Binding<Internal<L, C, F>>) -> ExecResult<Binding<Self>, Error<L, C, S, F>> {
         panic!("TODO")
     }
 
@@ -331,7 +331,7 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
                     InternalError::Compile(e) => {
                         use crate::Error::*;
                         let location = e.span();
-                        let kind = match *e {
+                        let kind = match e.into_inner() {
                             UnknownLogic => UnknownLogic,
                             InvalidSymbol(s) => InvalidSymbol(s),
                             InvalidIdent(id) => InvalidIdent(id),
