@@ -108,6 +108,15 @@ impl<'f, 'a> Formatter<'f, 'a> {
         self.split()?;
         self.end()
     }
+
+    pub fn comments(&mut self, comments: &str) -> Result {
+        for line in comments.lines() {
+            write!(self.f, "; {}", line)?;
+            self.split()?;
+        }
+
+        Ok(())
+    }
 }
 
 impl Display for Symbol {

@@ -299,7 +299,8 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
         Ok(response::Definition {
             rec: def.rec,
             declarations: declarations,
-            bodies: bodies
+            bodies: bodies,
+            comments: def.comments.clone()
         })
     }
 

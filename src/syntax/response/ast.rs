@@ -26,7 +26,8 @@ pub struct Model {
 pub struct Definition {
     pub rec: bool,
     pub declarations: Vec<Located<Declaration>>,
-    pub bodies: Vec<Located<Term>>
+    pub bodies: Vec<Located<Term>>,
+    pub comments: String
 }
 
 /// Function declaration.

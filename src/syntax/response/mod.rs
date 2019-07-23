@@ -229,7 +229,8 @@ impl Definition {
         Ok(Located::new(Definition {
             rec: rec,
             declarations: declarations,
-            bodies: bodies
+            bodies: bodies,
+            comments: String::new()
         }, loc))
     }
 }

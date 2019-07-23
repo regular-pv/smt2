@@ -36,7 +36,8 @@ pub struct Model<E: Environment> {
 pub struct Definition<E: Environment> {
     pub rec: bool,
     pub declarations: Vec<Declaration<E>>,
-    pub bodies: Vec<Term<E>>
+    pub bodies: Vec<Term<E>>,
+    pub comments: String
 }
 
 /// Function declaration.
@@ -82,7 +83,8 @@ pub fn compile_definition<E: Compiler>(env: &E, ast: &syntax::Definition) -> Res
     Ok(Definition {
         rec: ast.rec,
         declarations: compiled_declarations,
-        bodies: compiled_bodies
+        bodies: compiled_bodies,
+        comments: String::new()
     })
 }
 
@@ -124,7 +126,8 @@ impl<E: Environment> From<Definition<E>> for Located<syntax::Definition> where E
         Located::new(syntax::Definition {
             rec: def.rec,
             declarations: def.declarations.into_iter().map(|d| d.into()).collect(),
-            bodies: def.bodies.into_iter().map(|b| b.into()).collect()
+            bodies: def.bodies.into_iter().map(|b| b.into()).collect(),
+            comments: def.comments.clone()
         }, Span::default())
     }
 }

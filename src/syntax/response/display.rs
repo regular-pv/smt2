@@ -5,12 +5,13 @@ type Result = crate::syntax::display::Result;
 
 impl syntax::Display for Model {
     fn fmt(&self, f: &mut syntax::Formatter) -> Result {
-        f.list(&self.definitions)
+        f.tabulated_list(&self.definitions)
     }
 }
 
 impl syntax::Display for Definition {
     fn fmt(&self, f: &mut syntax::Formatter) -> Result {
+        f.comments(&self.comments);
         f.begin()?;
 
         if self.rec {
