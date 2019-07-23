@@ -203,10 +203,10 @@ impl Display for MatchCase {
 impl Display for Pattern {
     fn fmt(&self, f: &mut Formatter) -> Result {
         if self.args.is_empty() {
-            self.constructor.fmt(f)
+            self.id.fmt(f)
         } else {
             f.begin()?;
-            self.constructor.fmt(f)?;
+            self.id.fmt(f)?;
             f.list(&self.args)?;
             f.end()
         }

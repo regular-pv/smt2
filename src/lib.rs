@@ -268,26 +268,48 @@ impl<E: Environment> fmt::Display for MatchCase<E> where E::Constant: fmt::Displ
     }
 }
 
-pub struct Pattern<E: Environment> {
-    pub constructor: E::Function,
-    pub args: Vec<E::Ident>
+pub enum Pattern<E: Environment> {
+    Var(E::Ident),
+    Cons {
+        constructor: E::Function,
+        args: Vec<E::Ident>
+    }
 }
 
 impl<E: Environment> From<Pattern<E>> for Located<syntax::Pattern> where E::Function: fmt::Display, E::Ident: fmt::Display {
     fn from(pattern: Pattern<E>) -> Self {
-        Located::new(syntax::Pattern {
-            constructor: Located::new(syntax::Symbol::format(pattern.constructor), Span::default()),
-            args: pattern.args.into_iter().map(|a| Located::new(syntax::Symbol::format(a), Span::default())).collect()
-        }, Span::default())
+        let ast = match pattern {
+            Pattern::Var(id) => {
+                syntax::Pattern {
+                    id: Located::new(syntax::Symbol::format(id), Span::default()),
+                    args: Vec::new()
+                }
+            },
+            Pattern::Cons { constructor, args } => {
+                syntax::Pattern {
+                    id: Located::new(syntax::Symbol::format(constructor), Span::default()),
+                    args: args.into_iter().map(|a| Located::new(syntax::Symbol::format(a), Span::default())).collect()
+                }
+            }
+        };
+
+        Located::new(ast, Span::default())
     }
 }
 
 impl<E: Environment> fmt::Display for Pattern<E> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.args.is_empty() {
-            write!(f, "{}", self.constructor)
-        } else {
-            write!(f, "({} {})", self.constructor, PList(&self.args))
+        match self {
+            Pattern::Var(id) => {
+                write!(f, "{}", id)
+            },
+            Pattern::Cons { constructor, args } => {
+                if args.is_empty() {
+                    write!(f, "{}", constructor)
+                } else {
+                    write!(f, "({} {})", constructor, PList(args))
+                }
+            }
         }
     }
 }

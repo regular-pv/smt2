@@ -243,16 +243,16 @@ impl fmt::Display for MatchCase {
 
 #[derive(Clone)]
 pub struct Pattern {
-    pub constructor: Located<Symbol>,
+    pub id: Located<Symbol>,
     pub args: Vec<Located<Symbol>>
 }
 
 impl fmt::Display for Pattern {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.args.is_empty() {
-            write!(f, "{}", self.constructor)
+            write!(f, "{}", self.id)
         } else {
-            write!(f, "({} {})", self.constructor, PList(&self.args))
+            write!(f, "({} {})", self.id, PList(&self.args))
         }
     }
 }

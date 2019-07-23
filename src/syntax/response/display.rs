@@ -11,7 +11,7 @@ impl syntax::Display for Model {
 
 impl syntax::Display for Definition {
     fn fmt(&self, f: &mut syntax::Formatter) -> Result {
-        f.comments(&self.comments);
+        f.comments(&self.comments)?;
         f.begin()?;
 
         if self.rec {
