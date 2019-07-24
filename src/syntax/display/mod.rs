@@ -186,6 +186,13 @@ impl Display for Term {
                     f.list(args)?;
                     f.end()
                 }
+            },
+            Coerce { term, sort } => {
+                f.begin()?;
+                f.keyword("at")?;
+                term.fmt(f)?;
+                sort.fmt(f)?;
+                f.end()
             }
         }
     }

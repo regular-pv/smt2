@@ -882,7 +882,10 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
                             } else {
                                 let sort = match fun.typecheck(env, &[]) {
                                     Ok(sort) => sort,
-                                    Err(_) => panic!("typecheck failed on a constant!")
+                                    Err(TypeCheckError::Missmatch(i, expected_type)) => panic!("argument type missmatch on constant!"),
+                                    Err(TypeCheckError::Ambiguity(_)) => {
+                                        return Err(Error::TypeAmbiguity.at(loc))
+                                    }
                                 };
                                 Ok(Term::Apply {
                                     fun: fun,
@@ -996,6 +999,9 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
                     }
                 }
             }
+        },
+        syntax::Term::Coerce { term, sort } => {
+            panic!("TODO compile type coercion")
         }
     }
 }

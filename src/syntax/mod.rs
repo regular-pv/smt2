@@ -428,6 +428,18 @@ impl Parsable for Term {
                                 }
                             },
 
+							"as" => {
+								consume(lexer)?;
+								let term = Term::parse(lexer)?;
+								let sort = Sort::parse(lexer)?;
+								consume_token(lexer, End)?; // end of the term.
+
+								Term::Coerce {
+									term: Box::new(term),
+									sort: sort
+								}
+							},
+
                             _ => {
 								let id = ast::Ident::parse(lexer)?;
 								//println!("APPLY list");

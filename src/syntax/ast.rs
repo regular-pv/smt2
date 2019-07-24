@@ -211,6 +211,10 @@ pub enum Term {
     Apply {
         id: Located<Ident>,
         args: Box<Vec<Located<Term>>>
+    },
+    Coerce {
+        term: Box<Located<Term>>,
+        sort: Located<Sort>
     }
 }
 
@@ -224,7 +228,8 @@ impl fmt::Display for Term {
             Forall { vars, body } => write!(f, "(forall ({}) {})", PList(&vars), body),
             Exists { vars, body } => write!(f, "(exists ({}) {})", PList(&vars), body),
             Match { term, cases } => write!(f, "(match {}, ({}))", term, PList(cases)),
-            Apply { id, args } => write!(f, "({} {})", id, PList(&args))
+            Apply { id, args } => write!(f, "({} {})", id, PList(&args)),
+            Coerce { term, sort } => write!(f, "(as {} {})", term, sort)
         }
     }
 }
