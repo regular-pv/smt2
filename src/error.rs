@@ -1,7 +1,7 @@
 use std::result;
 use std::fmt;
 use source_span::Span;
-use crate::syntax;
+use crate::{syntax, typing};
 use crate::{Located, GroundSort, AbstractGroundSort, Environment};
 
 pub enum Error<E: Environment> {
@@ -13,8 +13,7 @@ pub enum Error<E: Environment> {
 	UndefinedVariable(E::Ident),
 	NegativeArity,
 	WrongNumberOfArguments(usize, usize, usize), // (expected_min, expected_max, given).
-	TypeMissmatch(AbstractGroundSort<E::Sort>, GroundSort<E::Sort>),
-	TypeAmbiguity
+	Type(typing::Error<E::Sort>)
 }
 
 impl<E: Environment> Error<E> {
@@ -47,8 +46,7 @@ impl<E: Environment> fmt::Display for Error<E> where E::Sort: fmt::Display, E::I
 					}
 				}
 			},
-			TypeMissmatch(expected, given) => write!(f, "expected sort `{}`, got `{}`", expected, given),
-			TypeAmbiguity => write!(f, "sort parameters are ambiguous")
+			Type(e) => write!(f, "type: {}", e)
 		}
     }
 }

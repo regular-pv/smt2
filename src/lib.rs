@@ -1,5 +1,6 @@
 #![feature(trait_alias)]
 
+extern crate ena;
 extern crate source_span;
 
 use std::fmt;
@@ -10,12 +11,16 @@ pub mod location;
 pub mod error;
 pub mod syntax;
 pub mod response;
+pub mod typing;
 pub mod client;
+mod sorted;
 
 pub use location::*;
 pub use error::{Error, Result};
 pub use syntax::lexer::{self, Lexer};
+pub use typing::{Typed, TypeChecker};
 pub use client::Client;
+pub use sorted::*;
 
 pub type ExecResult<T, E> = std::result::Result<T, E>;
 
@@ -124,57 +129,52 @@ pub enum Term<E: Environment> {
         index: usize,
 
         /// non-unique identifier.
-        id: E::Ident,
-
-        /// sort
-        sort: GroundSort<E::Sort>
+        id: E::Ident
     },
     Let {
         bindings: Vec<Binding<E>>,
-        body: Box<Term<E>>
+        body: Box<Typed<Term<E>>>
     },
     Forall {
         vars: Vec<SortedVar<E>>,
-        body: Box<Term<E>>
+        body: Box<Typed<Term<E>>>
     },
     Exists {
         vars: Vec<SortedVar<E>>,
-        body: Box<Term<E>>
+        body: Box<Typed<Term<E>>>
     },
     Match {
-        term: Box<Term<E>>,
+        term: Box<Typed<Term<E>>>,
         cases: Vec<MatchCase<E>>
     },
     Apply {
         fun: E::Function,
-        args: Box<Vec<Term<E>>>,
-        sort: GroundSort<E::Sort>
+        args: Box<Vec<Typed<Term<E>>>>
     }
 }
 
 impl<E: Environment> Term<E> {
-    pub fn apply(fun: E::Function, args: Vec<Term<E>>, sort: GroundSort<E::Sort>) -> Term<E> {
-        Term::Apply {
+    pub fn apply(fun: E::Function, args: Vec<Typed<Term<E>>>, sort: GroundSort<E::Sort>) -> Typed<Term<E>> {
+        Typed::new(Term::Apply {
             fun: fun,
-            args: Box::new(args),
-            sort: sort
-        }
+            args: Box::new(args)
+        }, Span::default(), sort)
     }
 
-    pub fn sort(&self, env: &E) -> GroundSort<E::Sort> {
-        use Term::*;
-        match self {
-            Const(c) => env.const_sort(c),
-            Var { sort, .. } => sort.clone(),
-            Let { body, .. } => {
-                body.sort(env)
-            },
-            Forall { .. } => env.sort_bool(),
-            Exists { .. } => env.sort_bool(),
-            Match { term, .. } => term.sort(env),
-            Apply { sort, .. } => sort.clone()
-        }
-    }
+    // pub fn sort(&self, env: &E) -> GroundSort<E::Sort> {
+    //     use Term::*;
+    //     match self {
+    //         Const(c) => env.const_sort(c),
+    //         Var { sort, .. } => sort.clone(),
+    //         Let { body, .. } => {
+    //             body.sort(env)
+    //         },
+    //         Forall { .. } => env.sort_bool(),
+    //         Exists { .. } => env.sort_bool(),
+    //         Match { term, .. } => term.sort(env),
+    //         Apply { sort, .. } => sort.clone()
+    //     }
+    // }
 }
 
 impl<E: Environment> From<Term<E>> for Located<syntax::Term> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
@@ -189,31 +189,31 @@ impl<E: Environment> From<Term<E>> for Located<syntax::Term> where E::Constant: 
             Let { bindings, body } => {
                 syntax::Term::Let {
                     bindings: bindings.into_iter().map(|b| b.into()).collect(),
-                    body: Box::new((*body).into())
+                    body: Box::new(body.into_inner().into())
                 }
             },
             Forall { vars, body } => {
                 syntax::Term::Forall {
                     vars: vars.into_iter().map(|v| v.into()).collect(),
-                    body: Box::new((*body).into())
+                    body: Box::new(body.into_inner().into())
                 }
             },
             Exists { vars, body } => {
                 syntax::Term::Exists {
                     vars: vars.into_iter().map(|v| v.into()).collect(),
-                    body: Box::new((*body).into())
+                    body: Box::new(body.into_inner().into())
                 }
             },
             Match { term, cases } => {
                 syntax::Term::Match {
-                    term: Box::new((*term).into()),
+                    term: Box::new(term.into_inner().into()),
                     cases: cases.into_iter().map(|c| c.into()).collect()
                 }
             },
             Apply { fun, args, .. } => {
                 syntax::Term::Apply {
                     id: Located::new(syntax::Symbol::format(fun), Span::default()).into(),
-                    args: Box::new(args.into_iter().map(|a| a.into()).collect())
+                    args: Box::new(args.into_iter().map(|a| a.into_inner().into()).collect())
                 }
             }
         };
@@ -252,15 +252,15 @@ impl<E: Environment> fmt::Display for Term<E> where E::Constant: fmt::Display, E
 }
 
 pub struct MatchCase<E: Environment> {
-    pub pattern: Pattern<E>,
-    pub term: Box<Term<E>>
+    pub pattern: Typed<Pattern<E>>,
+    pub term: Box<Typed<Term<E>>>
 }
 
 impl<E: Environment> From<MatchCase<E>> for Located<syntax::MatchCase> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     fn from(case: MatchCase<E>) -> Self {
         Located::new(syntax::MatchCase {
-            pattern: case.pattern.into(),
-            term: Box::new((*case.term).into())
+            pattern: case.pattern.into_inner().into(),
+            term: Box::new(case.term.into_inner().into())
         }, Span::default())
     }
 }
@@ -320,14 +320,14 @@ impl<E: Environment> fmt::Display for Pattern<E> where E::Constant: fmt::Display
 /// Variable binding.
 pub struct Binding<E: Environment> {
     pub id: E::Ident,
-    pub value: Box<Term<E>>
+    pub value: Box<Typed<Term<E>>>
 }
 
 impl<E: Environment> From<Binding<E>> for Located<syntax::Binding> where E::Constant: fmt::Display, E::Ident: fmt::Display, E::Function: fmt::Display, E::Sort: fmt::Display {
     fn from(binding: Binding<E>) -> Self {
         Located::new(syntax::Binding {
             id: Located::new(syntax::Symbol::format(binding.id), Span::default()).into(),
-            value: Box::new((*binding.value).into())
+            value: Box::new(binding.value.into_inner().into())
         }, Span::default())
     }
 }
@@ -701,7 +701,7 @@ pub struct SortDeclaration<E: Environment> {
 /// SMT2-lib command.
 pub enum Command<E: Environment> {
     /// Assertion.
-    Assert(Term<E>),
+    Assert(Typed<Term<E>>),
 
     /// Check sat.
     CheckSat,
@@ -795,12 +795,14 @@ pub trait Function<E: Environment> {
     fn typecheck(&self, env: &E, args: &[GroundSort<E::Sort>]) -> std::result::Result<GroundSort<E::Sort>, TypeCheckError<E::Sort>>;
 }
 
+pub trait Sort = Clone + PartialEq + fmt::Debug;
+
 /// SMT2-lib solver environment.
 pub trait Environment: Sized {
     type Logic;
-    type Constant: Clone + PartialEq;
+    type Constant: Clone + PartialEq + SortedWith<GroundSort<Self::Sort>>;
     type Ident: Clone + PartialEq;
-    type Sort: Clone + PartialEq;
+    type Sort: Sort;
     type Function;
     type Error;
 
@@ -809,9 +811,6 @@ pub trait Environment: Sized {
 
     /// Get the Bool sort, which is the only required sort.
     fn sort_bool(&self) -> GroundSort<Self::Sort>;
-
-    /// Get the sort of the given constant.
-    fn const_sort(&self, cst: &Self::Constant) -> GroundSort<Self::Sort>;
 }
 
 pub trait Compiler: Environment {
@@ -833,7 +832,7 @@ pub trait Compiler: Environment {
 
 pub trait Server: Environment {
     /// Assert.
-    fn assert(&mut self, term: &Term<Self>) -> ExecResult<(), Self::Error>;
+    fn assert(&mut self, term: &Typed<Term<Self>>) -> ExecResult<(), Self::Error>;
 
     /// Check satifiability.
     fn check_sat(&mut self) -> ExecResult<response::CheckSat, Self::Error>;
@@ -860,17 +859,16 @@ pub trait Server: Environment {
     fn set_logic(&mut self, logic: &Self::Logic) -> ExecResult<(), Self::Error>;
 }
 
-pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<syntax::Term>) -> Result<Term<E>, E> where <E as Environment>::Function: Function<E> {
+pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<syntax::Term>) -> Result<Typed<Term<E>>, E> where <E as Environment>::Function: Function<E> {
     let loc = term.span().clone();
-    match term.as_ref() {
+    let kind = match term.as_ref() {
         syntax::Term::Ident(id) => {
             let id = compile_ident(env, &id)?;
             match ctx.find(&id) {
-                Some((index, sort)) => {
+                Some((index, _)) => {
                     Ok(Term::Var {
                         index: index,
-                        id: id,
-                        sort: sort.clone()
+                        id: id
                     })
                 },
                 None => {
@@ -880,17 +878,9 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
                             if arity_min > 0 {
                                 Err(Error::WrongNumberOfArguments(arity_min, arity_max, 0).at(loc))
                             } else {
-                                let sort = match fun.typecheck(env, &[]) {
-                                    Ok(sort) => sort,
-                                    Err(TypeCheckError::Missmatch(i, expected_type)) => panic!("argument type missmatch on constant!"),
-                                    Err(TypeCheckError::Ambiguity(_)) => {
-                                        return Err(Error::TypeAmbiguity.at(loc))
-                                    }
-                                };
                                 Ok(Term::Apply {
                                     fun: fun,
-                                    args: Box::new(Vec::new()),
-                                    sort: sort
+                                    args: Box::new(Vec::new())
                                 })
                             }
                         },
@@ -961,10 +951,8 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
                         Err(Error::WrongNumberOfArguments(arity_min, arity_max, args.len()).at(loc))
                     } else {
                         let mut compiled_args = Vec::with_capacity(args.len());
-                        let mut args_types = Vec::with_capacity(args.len());
                         for arg in args.iter() {
                             let term = compile_term(env, ctx, &arg)?;
-                            args_types.push(term.sort(env));
                             compiled_args.push(term);
                         }
 
@@ -974,20 +962,19 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
                         //     return Err(Error::TypeMissmatch(expected_type, given_type).at(arg.location().clone()))
                         // }
 
-                        let sort = match fun.typecheck(env, &args_types) {
-                            Ok(sort) => sort,
-                            Err(TypeCheckError::Missmatch(i, expected_type)) => {
-                                return Err(Error::TypeMissmatch(expected_type, args_types[i].clone()).at(args[i].span()))
-                            },
-                            Err(TypeCheckError::Ambiguity(_)) => {
-                                return Err(Error::TypeAmbiguity.at(loc))
-                            }
-                        };
+                        // let sort = match fun.typecheck(env, &args_types) {
+                        //     Ok(sort) => sort,
+                        //     Err(TypeCheckError::Missmatch(i, expected_type)) => {
+                        //         return Err(Error::TypeMissmatch(expected_type, args_types[i].clone()).at(args[i].span()))
+                        //     },
+                        //     Err(TypeCheckError::Ambiguity(_)) => {
+                        //         return Err(Error::TypeAmbiguity.at(loc))
+                        //     }
+                        // };
 
                         Ok(Term::Apply {
                             fun: fun,
-                            args: Box::new(compiled_args),
-                            sort: sort
+                            args: Box::new(compiled_args)
                         })
                     }
                 },
@@ -1003,7 +990,9 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
         syntax::Term::Coerce { term, sort } => {
             panic!("TODO compile type coercion")
         }
-    }
+    };
+
+    Ok(Typed::untyped(kind?, loc))
 }
 
 pub fn compile_binding<E: Compiler>(env: &E, ctx: &Context<E>, sym: &Located<syntax::Binding>) -> Result<Binding<E>, E> where <E as Environment>::Function: Function<E> {

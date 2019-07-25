@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 utf8-decode = "*"
 source-span = { path = "/home/timothee/documents/projects/hemisemi/utils/parsing/source-span" }
+ena = "*"

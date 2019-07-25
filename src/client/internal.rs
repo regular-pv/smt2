@@ -38,16 +38,12 @@ impl<L, C: Clone + PartialEq, F: Function> Environment for Internal<L, C, F> {
     fn sort_bool(&self) -> GroundSort<Ident> {
         self.sort_bool.clone()
     }
-
-    fn const_sort(&self, cst: &Sorted<C, GroundSort<Ident>>) -> GroundSort<Ident> {
-        cst.sort().clone()
-    }
 }
 
 impl<L, C: Constant, F: Function> Server for Internal<L, C, F>
 where L: fmt::Display, C: fmt::Display {
     /// Assert.
-    fn assert(&mut self, term: &Term<Self>) -> ExecResult<(), Self::Error> {
+    fn assert(&mut self, term: &Typed<Term<Self>>) -> ExecResult<(), Self::Error> {
         write!(self.server.stdin.as_mut().unwrap(), "(assert {})\n", term)?;
         Ok(())
     }

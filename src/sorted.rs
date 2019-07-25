@@ -2,14 +2,20 @@ use std::fmt;
 use std::cmp::{Ordering, Ord, PartialOrd};
 use std::hash::{Hash, Hasher};
 
+pub trait SortedWith<S> {
+    fn sort(&self) -> &S;
+}
+
 pub struct Sorted<X, T>(pub X, pub T);
 
 impl<X, T> Sorted<X, T> {
     pub fn new(x: X, t: T) -> Sorted<X, T> {
         Sorted(x, t)
     }
+}
 
-    pub fn sort(&self) -> &T {
+impl<X, T> SortedWith<T> for Sorted<X, T> {
+    fn sort(&self) -> &T {
         &self.1
     }
 }

@@ -16,16 +16,14 @@ pub mod error;
 mod ident;
 mod internal;
 mod interface;
-mod sorted;
 
 pub mod cvc4;
 
 pub use error::Error;
 use ident::*;
 use internal::*;
-pub use sorted::*;
 
-pub trait Sort: Clone + Hash + Eq {
+pub trait Sort: Clone + Hash + Eq + fmt::Debug {
     fn arity(&self) -> usize;
 }
 
@@ -81,10 +79,6 @@ impl<L, C: Clone + PartialEq, S: Sort, F: Function> Environment for Client<L, C,
     fn sort_bool(&self) -> GroundSort<S> {
         self.sort_bool.clone()
     }
-
-    fn const_sort(&self, cst: &Sorted<C, GroundSort<S>>) -> GroundSort<S> {
-        cst.1.clone()
-    }
 }
 
 impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F>
@@ -138,7 +132,7 @@ where L: fmt::Display, C: fmt::Display {
     }
 
     /// Assert.
-    pub fn assert(&mut self, term: &Term<Self>) -> ExecResult<(), Error<L, C, S, F>> {
+    pub fn assert(&mut self, term: &Typed<Term<Self>>) -> ExecResult<(), Error<L, C, S, F>> {
         let term = self.downgrade_term(term)?;
         let r = self.internal.assert(&term);
         self.upgrade_result(r)

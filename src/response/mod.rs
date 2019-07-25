@@ -2,6 +2,7 @@ use std::fmt;
 use source_span::Span;
 use crate::{
     Located,
+    Typed,
     Result,
     Error,
     Environment,
@@ -36,7 +37,7 @@ pub struct Model<E: Environment> {
 pub struct Definition<E: Environment> {
     pub rec: bool,
     pub declarations: Vec<Declaration<E>>,
-    pub bodies: Vec<Term<E>>,
+    pub bodies: Vec<Typed<Term<E>>>,
     pub comments: String
 }
 
@@ -126,7 +127,7 @@ impl<E: Environment> From<Definition<E>> for Located<syntax::Definition> where E
         Located::new(syntax::Definition {
             rec: def.rec,
             declarations: def.declarations.into_iter().map(|d| d.into()).collect(),
-            bodies: def.bodies.into_iter().map(|b| b.into()).collect(),
+            bodies: def.bodies.into_iter().map(|b| b.into_inner().into()).collect(),
             comments: def.comments.clone()
         }, Span::default())
     }
