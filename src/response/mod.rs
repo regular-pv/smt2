@@ -7,6 +7,8 @@ use crate::{
     Error,
     Environment,
     Compiler,
+    TypeChecker,
+    Untypable,
     Term,
     SortedVar,
     GroundSort,
@@ -58,9 +60,17 @@ pub fn compile_model<E: Compiler>(env: &E, ast: &syntax::Model) -> Result<Model<
         compiled_definitions.push(compile_definition(env, def)?);
     }
 
-    Ok(Model {
+    let mut model = Model {
         definitions: compiled_definitions
-    })
+    };
+
+    // Type checking.
+    let mut checker = TypeChecker::new();
+    model.type_decoration(&mut checker, env);
+    checker.resolve()?;
+    unsafe { checker.apply()? };
+
+    Ok(model)
 }
 
 pub fn compile_definition<E: Compiler>(env: &E, ast: &syntax::Definition) -> Result<Definition<E>, E> where E::Function: Function<E> {

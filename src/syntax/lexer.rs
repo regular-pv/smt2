@@ -10,7 +10,7 @@ pub struct Lexer<R: Iterator<Item=io::Result<char>>> {
 }
 
 fn is_separator(c: char) -> bool {
-	c == '.' || c == ';' || c == ':' || c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']'
+	c == '.' || c == ';' || c == ':' || c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']' || c == ','
 }
 
 impl<R: Iterator<Item = io::Result<char>>> Lexer<R> {
@@ -150,29 +150,29 @@ impl<R: Iterator<Item = io::Result<char>>> Lexer<R> {
 		Ok(Token::Litteral(token::Litteral::String(string)).at(location))
 	}
 
-	fn read_numeric(&mut self, radix: u32, positive: bool) -> Result<Located<Token>> {
-		let mut value = 0;
-		let f = radix as i64;
-
-		loop {
-			match self.peek_char()? {
-				Some(c) if c.is_digit(radix) => {
-					self.consume()?;
-					value = value * f + c.to_digit(radix).unwrap() as i64;
-				},
-				_ => break
-			}
-		}
-
-		if !positive {
-			value = -value;
-		}
-
-		let location = self.location;
-		self.location.clear();
-
-		Ok(Token::Litteral(token::Litteral::Int(value)).at(location))
-	}
+	// fn read_numeric(&mut self, radix: u32, positive: bool) -> Result<Located<Token>> {
+	// 	let mut value = 0;
+	// 	let f = radix as i64;
+	//
+	// 	loop {
+	// 		match self.peek_char()? {
+	// 			Some(c) if c.is_digit(radix) => {
+	// 				self.consume()?;
+	// 				value = value * f + c.to_digit(radix).unwrap() as i64;
+	// 			},
+	// 			_ => break
+	// 		}
+	// 	}
+	//
+	// 	if !positive {
+	// 		value = -value;
+	// 	}
+	//
+	// 	let location = self.location;
+	// 	self.location.clear();
+	//
+	// 	Ok(Token::Litteral(token::Litteral::Int(value)).at(location))
+	// }
 
 	fn read_token(&mut self) -> Result<Option<Located<Token>>> {
 		self.skip_whitespaces()?;
@@ -199,23 +199,23 @@ impl<R: Iterator<Item = io::Result<char>>> Lexer<R> {
 						Ok(Some(self.read_string()?))
 					}
 
-					'-' => {
-						self.consume()?;
-						match self.peek_char()? {
-							Some(c) if c.is_digit(10) => {
-								Ok(Some(self.read_numeric(10, false)?))
-							},
-							_ => { // the ident "-"
-								let location = self.location.clone();
-								self.location.clear();
-								Ok(Some(Token::Ident("-".to_string()).at(location)))
-							}
-						}
-					},
+					// '-' => {
+					// 	self.consume()?;
+					// 	match self.peek_char()? {
+					// 		Some(c) if c.is_digit(10) => {
+					// 			Ok(Some(self.read_numeric(10, false)?))
+					// 		},
+					// 		_ => { // the ident "-"
+					// 			let location = self.location.clone();
+					// 			self.location.clear();
+					// 			Ok(Some(Token::Ident("-".to_string()).at(location)))
+					// 		}
+					// 	}
+					// },
 
-					c if c.is_digit(10) => {
-						Ok(Some(self.read_numeric(10, true)?))
-					},
+					// c if c.is_digit(10) => {
+					// 	Ok(Some(self.read_numeric(10, true)?))
+					// },
 
 					_ => {
 						Ok(Some(self.read_ident()?))

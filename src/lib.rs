@@ -18,7 +18,8 @@ mod sorted;
 pub use location::*;
 pub use error::{Error, Result};
 pub use syntax::lexer::{self, Lexer};
-pub use typing::{Typed, TypeChecker};
+pub use typing::{Typed, TypeChecker, TypeRef, GroundTypeRef};
+use typing::Untypable;
 pub use client::Client;
 pub use sorted::*;
 
@@ -344,6 +345,15 @@ pub struct SortedVar<E: Environment> {
     pub sort: GroundSort<E::Sort>
 }
 
+impl<E: Environment> Clone for SortedVar<E> where E::Ident: Clone {
+    fn clone(&self) -> SortedVar<E> {
+        SortedVar {
+            id: self.id.clone(),
+            sort: self.sort.clone()
+        }
+    }
+}
+
 impl<E: Environment> From<SortedVar<E>> for Located<syntax::SortedVar> where E::Ident: fmt::Display, E::Sort: fmt::Display {
     fn from(var: SortedVar<E>) -> Self {
         Located::new(syntax::SortedVar {
@@ -433,37 +443,55 @@ pub enum AbstractGroundSort<T> {
 }
 
 impl<T: Clone + PartialEq> AbstractGroundSort<T> {
-    /// Check that the given ground sort matches this abstract ground sort with the given
-    /// type parameter context.
-    /// If it does not match, return the expected sort. Since all the type parameters may not have
-    /// been resolved when a missmatch is detected, the expected sort is abstract.
-    pub fn typecheck(&self, context: &mut [Option<GroundSort<T>>], arg: &GroundSort<T>) -> std::result::Result<(), AbstractGroundSort<T>> {
-        match self {
-            AbstractGroundSort::Sort { sort, parameters } => {
-                if *sort == arg.sort {
-                    for (i, p) in arg.parameters.iter().enumerate() {
-                        parameters[i].typecheck(context, p)?
-                    }
+    // /// Check that the given ground sort matches this abstract ground sort with the given
+    // /// type parameter context.
+    // /// If it does not match, return the expected sort. Since all the type parameters may not have
+    // /// been resolved when a missmatch is detected, the expected sort is abstract.
+    // pub fn typecheck(&self, context: &mut [Option<GroundSort<T>>], arg: &GroundSort<T>) -> std::result::Result<(), AbstractGroundSort<T>> {
+    //     match self {
+    //         AbstractGroundSort::Sort { sort, parameters } => {
+    //             if *sort == arg.sort {
+    //                 for (i, p) in arg.parameters.iter().enumerate() {
+    //                     parameters[i].typecheck(context, p)?
+    //                 }
+    //
+    //                 Ok(())
+    //             } else {
+    //                 Err(self.clone())
+    //             }
+    //         },
+    //         AbstractGroundSort::Param(i) => {
+    //             match &context[*i] {
+    //                 Some(expected) => {
+    //                     if *expected == *arg {
+    //                         Ok(())
+    //                     } else {
+    //                         Err(expected.into())
+    //                     }
+    //                 },
+    //                 None => {
+    //                     context[*i] = Some(arg.clone());
+    //                     Ok(())
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
-                    Ok(())
-                } else {
-                    Err(self.clone())
-                }
-            },
+    pub fn as_type_ref(&self, context: &[TypeRef<T>]) -> TypeRef<T> where T: fmt::Debug {
+        match self {
             AbstractGroundSort::Param(i) => {
-                match &context[*i] {
-                    Some(expected) => {
-                        if *expected == *arg {
-                            Ok(())
-                        } else {
-                            Err(expected.into())
-                        }
-                    },
-                    None => {
-                        context[*i] = Some(arg.clone());
-                        Ok(())
-                    }
+                context[*i].clone()
+            },
+            AbstractGroundSort::Sort { sort, parameters } => {
+                let mut parameters_ref = Vec::with_capacity(parameters.len());
+                for p in parameters {
+                    parameters_ref.push(p.as_type_ref(context))
                 }
+                TypeRef::Ground(GroundTypeRef {
+                    sort: sort.clone(),
+                    parameters: parameters_ref
+                })
             }
         }
     }
@@ -789,10 +817,10 @@ pub trait Function<E: Environment> {
     /// the same.
     fn arity(&self, env: &E) -> (usize, usize);
 
-    /// Check the type of the given arguments, and return the ground sort of the function's
-    /// output with those arguments.
-    /// It can be assumed that the number of arguments lies in the range given by `arity`.
-    fn typecheck(&self, env: &E, args: &[GroundSort<E::Sort>]) -> std::result::Result<GroundSort<E::Sort>, TypeCheckError<E::Sort>>;
+    // /// Check the type of the given arguments, and return the ground sort of the function's
+    // /// output with those arguments.
+    // /// It can be assumed that the number of arguments lies in the range given by `arity`.
+    // fn typecheck(&self, checker: &mut TypeChecker<E::Sort>, env: &E, args: &[TypeRef<E::Sort>], return_sort: TypeRef<E::Sort>);
 }
 
 pub trait Sort = Clone + PartialEq + fmt::Debug;
@@ -811,6 +839,8 @@ pub trait Environment: Sized {
 
     /// Get the Bool sort, which is the only required sort.
     fn sort_bool(&self) -> GroundSort<Self::Sort>;
+
+    fn typecheck_function(&self, checker: &mut TypeChecker<Self::Sort>, f: &Self::Function, args: &[TypeRef<Self::Sort>], return_sort: TypeRef<Self::Sort>);
 }
 
 pub trait Compiler: Environment {
@@ -1140,17 +1170,17 @@ pub fn compile_selector_declaration<E: Compiler>(env: &E, decl: &Located<syntax:
 pub fn compile<E: Compiler>(env: &E, cmd: &Located<syntax::Command>) -> Result<Command<E>, E> where <E as Environment>::Function: Function<E> {
     let loc = cmd.span();
     let mut ctx = Context::new();
-    match cmd.as_ref() {
+    let mut compiled_cmd = match cmd.as_ref() {
         syntax::Command::Assert(term) => {
-            Ok(Command::Assert(compile_term(env, &mut ctx, &term)?))
+            Command::Assert(compile_term(env, &mut ctx, &term)?)
         },
         syntax::Command::CheckSat => {
-            Ok(Command::CheckSat)
+            Command::CheckSat
         },
         syntax::Command::DeclareConst(id, sort) => {
             let id = compile_symbol(env, &id)?;
             let sort = compile_sort(env, &sort)?;
-            Ok(Command::DeclareConst(id, sort))
+            Command::DeclareConst(id, sort)
         },
         syntax::Command::DeclareDatatype(id, decl) => {
             let sort_decl = SortDeclaration {
@@ -1160,7 +1190,7 @@ pub fn compile<E: Compiler>(env: &E, cmd: &Located<syntax::Command>) -> Result<C
 
             let decl = compile_datatype_declaration(env, &decl)?;
 
-            Ok(Command::DeclareDatatypes(vec![sort_decl], vec![decl]))
+            Command::DeclareDatatypes(vec![sort_decl], vec![decl])
         },
         syntax::Command::DeclareDatatypes(sort_decls, decls) => {
             let mut compiled_sort_decls = Vec::with_capacity(sort_decls.len());
@@ -1173,7 +1203,7 @@ pub fn compile<E: Compiler>(env: &E, cmd: &Located<syntax::Command>) -> Result<C
                 compiled_decls.push(compile_datatype_declaration(env, &decl)?)
             }
 
-            Ok(Command::DeclareDatatypes(compiled_sort_decls, compiled_decls))
+            Command::DeclareDatatypes(compiled_sort_decls, compiled_decls)
         },
         syntax::Command::DeclareFun(id, args, return_sort) => {
             let id = compile_symbol(env, &id)?;
@@ -1183,13 +1213,13 @@ pub fn compile<E: Compiler>(env: &E, cmd: &Located<syntax::Command>) -> Result<C
             }
             let return_sort = compile_sort(env, &return_sort)?;
 
-            Ok(Command::DeclareFun(id, compiled_args, return_sort))
+            Command::DeclareFun(id, compiled_args, return_sort)
         },
         syntax::Command::Exit => {
-            Ok(Command::Exit)
+            Command::Exit
         },
         syntax::Command::GetModel => {
-            Ok(Command::GetModel)
+            Command::GetModel
         },
         syntax::Command::SetInfo(_) => {
             panic!("set-info")
@@ -1197,9 +1227,17 @@ pub fn compile<E: Compiler>(env: &E, cmd: &Located<syntax::Command>) -> Result<C
         syntax::Command::SetLogic(id) => {
             let id = compile_symbol(env, &id)?;
             match env.logic(&id) {
-                Some(logic) => Ok(Command::SetLogic(logic)),
-                None => Err(Error::UnknownLogic.at(loc))
+                Some(logic) => Command::SetLogic(logic),
+                None => return Err(Error::UnknownLogic.at(loc))
             }
         }
-    }
+    };
+
+    // Type checking.
+    let mut checker = TypeChecker::new();
+    compiled_cmd.type_decoration(&mut checker, env);
+    checker.resolve()?;
+    unsafe { checker.apply()? };
+
+    Ok(compiled_cmd)
 }

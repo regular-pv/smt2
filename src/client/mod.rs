@@ -79,6 +79,10 @@ impl<L, C: Clone + PartialEq, S: Sort, F: Function> Environment for Client<L, C,
     fn sort_bool(&self) -> GroundSort<S> {
         self.sort_bool.clone()
     }
+
+    fn typecheck_function(&self, checker: &mut TypeChecker<S>, f: &F, args: &[TypeRef<S>], return_sort: TypeRef<S>) {
+        panic!("TODO")
+    }
 }
 
 impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F>

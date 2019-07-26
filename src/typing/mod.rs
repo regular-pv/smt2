@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::collections::HashMap;
 use std::convert::AsRef;
 use std::fmt;
 use ena::unify::{UnifyKey, UnifyValue, UnificationTable, InPlace};
@@ -8,31 +9,88 @@ use crate::{
     Sort,
     SortedWith,
     GroundSort,
+    Function,
+    Command,
     Term,
-    Pattern
+    Pattern,
+    response
 };
 
 mod error;
 
 pub use error::*;
 
-#[derive(Debug, Clone)]
-pub enum Type<S: Sort> {
-    None,
-    Some(GroundSort<S>)
+#[derive(Clone, Debug)]
+pub enum TypeRef<S: Sort> {
+    Var(usize, Span),
+    Ground(GroundTypeRef<S>)
 }
 
-impl<S: Sort> UnifyValue for Type<S> {
-    type Error = Error<S>;
+impl<S: Sort + fmt::Display> fmt::Display for TypeRef<S> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use TypeRef::*;
+        match self {
+            Var(_, _) => write!(f, "_"),
+            Ground(g) => {
+                if g.parameters.is_empty() {
+                    write!(f, "{}", g.sort)
+                } else {
+                    write!(f, "({}", g.sort)?;
+                    for p in &g.parameters {
+                        write!(f, " {}", p)?;
+                    }
+                    write!(f, ")")
+                }
+            }
+        }
+    }
+}
 
-    fn unify_values(a: &Type<S>, b: &Type<S>) -> Result<Type<S>, S> {
-        panic!("TODO unify values")
+#[derive(Clone, Debug)]
+pub struct GroundTypeRef<S: Sort> {
+    pub sort: S,
+    pub parameters: Vec<TypeRef<S>>
+}
+
+impl<S: Sort> TypeRef<S> {
+    fn into_ground_sort(&self) -> std::result::Result<GroundSort<S>, ()> {
+        match self {
+            TypeRef::Var(_, _) => Err(()),
+            TypeRef::Ground(g) => {
+                let mut parameters = Vec::with_capacity(g.parameters.len());
+                for p in &g.parameters {
+                    parameters.push(p.into_ground_sort()?)
+                }
+
+                Ok(GroundSort {
+                    sort: g.sort.clone(),
+                    parameters: parameters
+                })
+            }
+        }
+    }
+}
+
+impl<S: Sort> From<TypeRef<S>> for SortMissmatch<S> {
+    fn from(ty: TypeRef<S>) -> SortMissmatch<S> {
+        match ty {
+            TypeRef::Var(id, span) => SortMissmatch::Var(id, span),
+            TypeRef::Ground(g) => g.into()
+        }
+    }
+}
+
+impl<S: Sort> From<GroundTypeRef<S>> for SortMissmatch<S> {
+    fn from(ty: GroundTypeRef<S>) -> SortMissmatch<S> {
+        SortMissmatch::Match {
+            sort: ty.sort,
+            parameters: ty.parameters.into_iter().map(|ty| ty.into()).collect()
+        }
     }
 }
 
 pub struct Typed<T: Typable> {
-    type_ref: TypeRef<T::Sort>,
-    typ: Type<T::Sort>,
+    typ: Option<GroundSort<T::Sort>>,
     span: Span,
     value: T
 }
@@ -40,8 +98,7 @@ pub struct Typed<T: Typable> {
 impl<T: Typable> Typed<T> {
     pub fn new(t: T, span: Span, sort: GroundSort<T::Sort>) -> Typed<T> {
         Typed {
-            type_ref: TypeRef::Var(TypeVar::new(0)),
-            typ: Type::Some(sort),
+            typ: Some(sort),
             span: span,
             value: t
         }
@@ -49,8 +106,7 @@ impl<T: Typable> Typed<T> {
 
     pub fn untyped(t: T, span: Span) -> Typed<T> {
         Typed {
-            type_ref: TypeRef::Var(TypeVar::new(0)),
-            typ: Type::None,
+            typ: None,
             span: span,
             value: t
         }
@@ -73,105 +129,266 @@ impl<T: Typable + fmt::Display> fmt::Display for Typed<T> {
     }
 }
 
-#[derive(Clone)]
-pub enum TypeRef<S: Sort> {
-    Ground(GroundSort<S>),
-    Var(TypeVar<S>)
-}
-
 impl<S: Sort> From<GroundSort<S>> for TypeRef<S> {
     fn from(gsort: GroundSort<S>) -> TypeRef<S> {
-        TypeRef::Ground(gsort)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TypeVar<S: Sort> {
-    id: u32,
-    s: PhantomData<S>
-}
-
-impl<S: Sort> TypeVar<S> {
-    pub fn new(id: u32) -> TypeVar<S> {
-        TypeVar {
-            id: id,
-            s: PhantomData
-        }
-    }
-}
-
-impl<S: Sort> Copy for TypeVar<S> {}
-
-impl<S: Sort> UnifyKey for TypeVar<S> {
-    type Value = Type<S>;
-
-    fn index(&self) -> u32 {
-        self.id
-    }
-
-    fn from_index(index: u32) -> TypeVar<S> {
-        TypeVar {
-            id: index,
-            s: PhantomData
-        }
-    }
-
-    fn tag() -> &'static str {
-        "typevar"
+        TypeRef::Ground(GroundTypeRef {
+            sort: gsort.sort,
+            parameters: gsort.parameters.into_iter().map(|gs| gs.into()).collect()
+        })
     }
 }
 
 impl<T: Typable> Typed<T> {
-    pub fn type_ref(&self) -> &TypeRef<T::Sort> {
-        &self.type_ref
-    }
-
     pub fn sort(&self) -> &GroundSort<T::Sort> {
-        panic!("untyped!")
+        if let Some(sort) = &self.typ {
+            sort
+        } else {
+            panic!("untyped!")
+        }
     }
 
     pub fn span(&self) -> Span {
         self.span
     }
 
-    pub fn check(&self, checker: &mut TypeChecker<T::Sort>, env: &T::Environment) {
-        panic!("TODO typecheck")
+    pub fn type_decoration(&mut self, checker: &mut TypeChecker<T::Sort>, env: &T::Environment) -> TypeRef<T::Sort> {
+        let type_ref = checker.new_attached_type_variable(self.span(), &mut self.typ as *mut Option<_>);
+        checker.enter(self.span());
+        self.value.type_decoration(checker, env, type_ref.clone());
+        checker.leave();
+        type_ref
     }
 }
 
+pub type Constraint<S> = (TypeRef<S>, TypeRef<S>, Span);
+
 pub struct TypeChecker<S: Sort> {
-    table: UnificationTable<InPlace<TypeVar<S>>>,
-    constraints: Vec<(TypeRef<S>, TypeRef<S>)>
+    path: Vec<Span>,
+
+    /// Pending constraints to resolve.
+    constraints: Vec<Constraint<S>>,
+
+    /// The sort of the currently bound variables.
+    ///
+    /// Modified with `push`/`pop`.
+    variables: Vec<TypeRef<S>>,
+
+    knowledge: Vec<TypeRef<S>>,
+
+    spans: Vec<Span>,
+
+    pointers: HashMap<usize, *mut Option<GroundSort<S>>>
 }
 
 impl<S: Sort> TypeChecker<S> {
+    pub fn new() -> TypeChecker<S> {
+        TypeChecker {
+            path: Vec::new(),
+            constraints: Vec::new(),
+            variables: Vec::new(),
+            knowledge: Vec::new(),
+            spans: Vec::new(),
+            pointers: HashMap::new()
+        }
+    }
+
+    pub fn new_type_variable(&mut self, span: Span) -> TypeRef<S> {
+        let id = self.knowledge.len();
+        self.knowledge.push(TypeRef::Var(id, span));
+        self.spans.push(span);
+        TypeRef::Var(id, span)
+    }
+
+    pub fn new_attached_type_variable(&mut self, span: Span, pointer: *mut Option<GroundSort<S>>) -> TypeRef<S> {
+        let id = self.knowledge.len();
+        self.knowledge.push(TypeRef::Var(id, span));
+        self.spans.push(span);
+        self.pointers.insert(id, pointer);
+        TypeRef::Var(id, span)
+    }
+
     /// Add a new constraint to the type checker.
     ///
     /// Even of the system is not satisfiable, this function never fail.
     /// Type errors are detected with the [`TypeChecker::resolve`] method.
     pub fn assert_equal<A: Into<TypeRef<S>>, B: Into<TypeRef<S>>>(&mut self, expected: A, given: B) {
-        self.constraints.push((expected.into(), given.into()))
+        self.constraints.push((expected.into(), given.into(), self.location()))
+    }
+
+    pub fn var(&self, index: usize) -> &TypeRef<S> {
+        &self.variables[index]
+    }
+
+    pub fn push<T: Into<TypeRef<S>>>(&mut self, ty: T) {
+        self.variables.push(ty.into())
+    }
+
+    pub fn pop(&mut self, len: usize) {
+        for _ in 0..len {
+            self.variables.pop();
+        }
+    }
+
+    pub fn enter(&mut self, span: Span) {
+        self.path.push(span);
+    }
+
+    pub fn leave(&mut self) {
+        self.path.pop();
+    }
+
+    pub fn location(&self) -> Span {
+        match self.path.last() {
+            Some(span) => *span,
+            None =>  Span::default()
+        }
+    }
+
+    pub fn representant(&self, id: usize) -> (usize, TypeRef<S>) {
+        match &self.knowledge[id] {
+            TypeRef::Var(next, _) if *next != id => {
+                self.representant(*next)
+            },
+            ty => (id, ty.clone())
+        }
+    }
+
+    pub fn redirected(&self, ty: TypeRef<S>) -> TypeRef<S> {
+        match ty {
+            TypeRef::Var(id, span) => {
+                match &self.knowledge[id] {
+                    TypeRef::Var(next, _) if *next != id => {
+                        self.redirected(TypeRef::Var(*next, span))
+                    },
+                    ty => ty.clone()
+                }
+            },
+            ty => ty.clone()
+        }
+    }
+
+    pub fn unify(&self, expected: TypeRef<S>, given: TypeRef<S>, root: bool, span: Span) -> std::result::Result<(TypeRef<S>, Vec<Constraint<S>>), SortMissmatch<S>> {
+        match (self.redirected(expected), self.redirected(given)) {
+             (TypeRef::Var(a, span_a), TypeRef::Var(b, span_b)) => {
+                 let constraints = if root {
+                     Vec::new()
+                 } else {
+                     vec![(TypeRef::Var(a, span_a), TypeRef::Var(b, span_b), span)]
+                 };
+                 Ok((TypeRef::Var(std::cmp::min(a, b), span_b), constraints))
+             },
+             (TypeRef::Ground(a), TypeRef::Ground(b)) => {
+                 if a.sort != b.sort {
+                    let m = SortMissmatch::Miss {
+                         expected_sort: a.sort.clone(),
+                         expected_parameters: a.parameters.clone(),
+                         given_sort: b.sort.clone(),
+                         given_parameters: b.parameters.clone()
+                     };
+                     return Err(m)
+                 } else {
+                     let sort = a.sort;
+                     let mut parameters = Vec::new();
+                     let mut constraints = Vec::new();
+                     for (a, b) in a.parameters.into_iter().zip(b.parameters.into_iter()) {
+                         let (c, mut sub_constraints) = self.unify(a, b, false, span)?;
+                         constraints.append(&mut sub_constraints);
+                         parameters.push(c);
+                     }
+
+                     Ok((TypeRef::Ground(GroundTypeRef {
+                         sort: sort,
+                         parameters: parameters
+                     }), constraints))
+                 }
+             },
+             (TypeRef::Var(_, _), b) => {
+                 Ok((b, vec![]))
+             },
+             (a, TypeRef::Var(_, _)) => {
+                 Ok((a, vec![]))
+             }
+        }
     }
 
     /// Resolve all the constraints.
     pub fn resolve(&mut self) -> Result<(), S> {
-        // loop {
-        //     for (a, b) in &self.constraints {
-        //         match (a, b) {
-        //             (TypeRef::Ground(a), TypeRef::Ground(b)) => {
-        //                 if a == b {
-        //                     Ok(())
-        //                 } else {
-        //                     Err(Error::Missmatch(a, b))
-        //                 }
-        //             },
-        //             (TypeRef::Label(a), TypeRef::Label(b)) => {
-        //                 // ...
-        //             }
-        //         }
-        //     }
-        // }
-        panic!("TODO resolve types")
+        while !self.constraints.is_empty() {
+            let constraints = self.constraints.clone();
+            self.constraints.clear();
+
+            for (a, b, span) in constraints.into_iter() {
+                match (a, b) {
+                    (TypeRef::Var(expected, expected_span), TypeRef::Var(given, given_span)) => {
+                        let (expected_rep, expected_ty) = self.representant(expected);
+                        let (given_rep, given_ty) = self.representant(given);
+                        match self.unify(expected_ty, given_ty, true, span) {
+                            Err(e) => return Err(Error::Missmatch(e).at(given_span)),
+                            Ok((union, mut new_constraints)) => {
+                                if expected_rep < given_rep {
+                                    self.knowledge[expected_rep] = union;
+                                    self.knowledge[given_rep] = TypeRef::Var(expected_rep, given_span);
+                                } else {
+                                    self.knowledge[given_rep] = union;
+                                    self.knowledge[expected_rep] = TypeRef::Var(given_rep, expected_span);
+                                }
+
+                                self.constraints.append(&mut new_constraints);
+                            }
+                        }
+                    },
+                    (TypeRef::Ground(expected), TypeRef::Ground(given)) => {
+                        let expected_ty = TypeRef::Ground(expected);
+                        let given_ty = TypeRef::Ground(given);
+                        match self.unify(expected_ty, given_ty, true, span) {
+                            Err(e) => return Err(Error::Missmatch(e).at(span)),
+                            Ok((_, mut new_constraints)) => {
+                                self.constraints.append(&mut new_constraints);
+                            }
+                        }
+                    },
+                    (TypeRef::Var(expected, _), given_ty) => {
+                        let (expected_rep, expected_ty) = self.representant(expected);
+                        match self.unify(expected_ty, given_ty, true, span) {
+                            Err(e) => return Err(Error::Missmatch(e).at(span)),
+                            Ok((union, mut new_constraints)) => {
+                                self.knowledge[expected_rep] = union;
+                                self.constraints.append(&mut new_constraints);
+                            }
+                        }
+                    },
+                    (expected_ty, TypeRef::Var(given, given_span)) => {
+                        let (given_rep, given_ty) = self.representant(given);
+                        match self.unify(expected_ty, given_ty, true, span) {
+                            Err(e) => return Err(Error::Missmatch(e).at(given_span)),
+                            Ok((union, mut new_constraints)) => {
+                                self.knowledge[given_rep] = union;
+                                self.constraints.append(&mut new_constraints);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Apply the resolved types.
+    pub unsafe fn apply(&self) -> Result<(), S> {
+        for (id, ptr) in &self.pointers {
+            let span = self.spans[*id];
+            match self.redirected(TypeRef::Var(*id, span)).into_ground_sort() {
+                Ok(sort) => {
+                    std::ptr::write(*ptr, Some(sort));
+                },
+                Err(_) => {
+                    return Err(Error::Ambiguity.at(span))
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -179,42 +396,86 @@ pub trait Typable {
     type Sort: Sort;
     type Environment;
 
-    fn check(&self, checker: &mut TypeChecker<Self::Sort>, env: &Self::Environment, this_type: TypeRef<Self::Sort>);
+    fn type_decoration(&mut self, checker: &mut TypeChecker<Self::Sort>, env: &Self::Environment, this_type: TypeRef<Self::Sort>);
+}
+
+pub trait Untypable {
+    type Sort: Sort;
+    type Environment;
+
+    fn type_decoration(&mut self, checker: &mut TypeChecker<Self::Sort>, env: &Self::Environment);
+}
+
+impl<E: Environment> Untypable for Command<E> {
+    type Sort = E::Sort;
+    type Environment = E;
+
+    fn type_decoration(&mut self, checker: &mut TypeChecker<Self::Sort>, env: &Self::Environment) {
+        use Command::*;
+        match self {
+            Assert(term) => {
+                term.type_decoration(checker, env);
+            },
+            _ => ()
+        }
+    }
 }
 
 impl<E: Environment> Typable for Term<E> {
     type Sort = E::Sort;
     type Environment = E;
 
-    fn check(&self, checker: &mut TypeChecker<E::Sort>, env: &E, this_type: TypeRef<E::Sort>) {
+    fn type_decoration(&mut self, checker: &mut TypeChecker<E::Sort>, env: &E, this_type: TypeRef<E::Sort>) {
         use Term::*;
         match self {
             Const(cst) => {
                 checker.assert_equal(cst.sort().clone(), this_type);
             },
-            Var { index, id } => {
-                // nothing to check.
+            Var { index, .. } => {
+                checker.assert_equal(this_type, checker.var(*index).clone());
             },
-            Let { body, .. } => {
-                body.check(checker, env);
+            Let { bindings, body } => {
+                for binding in bindings.iter_mut() {
+                    let binding_type = binding.value.type_decoration(checker, env);
+                    checker.push(binding_type);
+                }
+                let body_type = body.type_decoration(checker, env);
+                checker.pop(bindings.len());
+                checker.assert_equal(this_type, body_type);
             },
-            Forall { body, .. } => {
+            Forall { vars, body} => {
+                for x in vars.iter_mut() {
+                    checker.push(x.sort.clone());
+                }
+                body.type_decoration(checker, env);
+                checker.pop(vars.len());
                 checker.assert_equal(env.sort_bool(), this_type);
-                body.check(checker, env);
             },
-            Exists { body, .. } => {
+            Exists { vars, body } => {
+                for x in vars.iter_mut() {
+                    checker.push(x.sort.clone());
+                }
+                body.type_decoration(checker, env);
+                checker.pop(vars.len());
                 checker.assert_equal(env.sort_bool(), this_type);
-                body.check(checker, env);
             },
             Match { term, cases } => {
+                let term_type_ref = term.type_decoration(checker, env);
                 for case in cases {
-                    checker.assert_equal(term.type_ref().clone(), case.term.type_ref().clone())
+                    let pattern_type_ref = case.pattern.type_decoration(checker, env);
+                    let value_type_ref = case.term.type_decoration(checker, env);
+                    checker.assert_equal(term_type_ref.clone(), pattern_type_ref);
+                    checker.assert_equal(term_type_ref.clone(), value_type_ref);
                 }
-                checker.assert_equal(term.type_ref().clone(), this_type);
+                checker.assert_equal(term_type_ref, this_type);
             },
             Apply { fun, args } => {
-                panic!("TODO typecheck function app")
-                // fun.typecheck(checker, args, this_type);
+                let mut args_types = Vec::new();
+                for a in args.iter_mut() {
+                    let arg_type_ref = a.type_decoration(checker, env);
+                    args_types.push(arg_type_ref);
+                }
+                env.typecheck_function(checker, fun, &args_types, this_type);
             }
         }
     }
@@ -224,7 +485,35 @@ impl<E: Environment> Typable for Pattern<E> {
     type Sort = E::Sort;
     type Environment = E;
 
-    fn check(&self, checker: &mut TypeChecker<E::Sort>, env: &E, this_type: TypeRef<E::Sort>) {
+    fn type_decoration(&mut self, checker: &mut TypeChecker<E::Sort>, env: &E, this_type: TypeRef<E::Sort>) {
         panic!("TODO typecheck pattern")
+    }
+}
+
+impl<E: Environment> Untypable for response::Model<E> {
+    type Sort = E::Sort;
+    type Environment = E;
+
+    fn type_decoration(&mut self, checker: &mut TypeChecker<Self::Sort>, env: &Self::Environment) {
+        for def in &mut self.definitions {
+            def.type_decoration(checker, env)
+        }
+    }
+}
+
+impl<E: Environment> Untypable for response::Definition<E> {
+    type Sort = E::Sort;
+    type Environment = E;
+
+    fn type_decoration(&mut self, checker: &mut TypeChecker<Self::Sort>, env: &Self::Environment) {
+        for (i, decl) in self.declarations.iter_mut().enumerate() {
+            let body = &mut self.bodies[i];
+            for arg in &decl.args {
+                checker.push(arg.sort.clone());
+            }
+            body.type_decoration(checker, env);
+            checker.pop(decl.args.len());
+
+        }
     }
 }

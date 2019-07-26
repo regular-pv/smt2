@@ -38,12 +38,41 @@ impl<L, C: Clone + PartialEq, F: Function> Environment for Internal<L, C, F> {
     fn sort_bool(&self) -> GroundSort<Ident> {
         self.sort_bool.clone()
     }
+
+    fn typecheck_function(&self, checker: &mut TypeChecker<Ident>, f: &InternalFunction<F>, input: &[TypeRef<Ident>], return_sort_ref: TypeRef<Ident>) {
+        use self::InternalFunctionSignature::*;
+        match &*f.sig {
+            User { args, return_sort } => {
+                for i in 0..args.len() {
+                    checker.assert_equal(args[i].clone(), input[i].clone())
+                }
+                checker.assert_equal(return_sort.clone(), return_sort_ref);
+            },
+            Equality => {
+                checker.assert_equal(input[0].clone(), input[1].clone());
+                checker.assert_equal(self.sort_bool.clone(), return_sort_ref);
+            },
+            Ite => {
+                checker.assert_equal(self.sort_bool.clone(), input[0].clone());
+                checker.assert_equal(input[1].clone(), input[2].clone());
+                checker.assert_equal(input[1].clone(), return_sort_ref);
+            },
+            _ => {
+                for i in input.iter() {
+                    checker.assert_equal(self.sort_bool.clone(), i.clone());
+                }
+
+                checker.assert_equal(self.sort_bool.clone(), return_sort_ref);
+            }
+        }
+    }
 }
 
 impl<L, C: Constant, F: Function> Server for Internal<L, C, F>
 where L: fmt::Display, C: fmt::Display {
     /// Assert.
     fn assert(&mut self, term: &Typed<Term<Self>>) -> ExecResult<(), Self::Error> {
+        println!("(assert {})\n", term);
         write!(self.server.stdin.as_mut().unwrap(), "(assert {})\n", term)?;
         Ok(())
     }
@@ -196,48 +225,6 @@ impl<L, C: Clone + PartialEq, F: Function> crate::Function<Internal<L, C, F>> fo
             LogicBinary => (2, 2),
             LogicNary => (0, std::usize::MAX),
             Ite => (3, 3)
-        }
-    }
-
-    fn typecheck(&self, env: &Internal<L, C, F>, input: &[GroundSort<Ident>]) -> std::result::Result<GroundSort<Ident>, TypeCheckError<Ident>> {
-        use self::InternalFunctionSignature::*;
-        match &*self.sig {
-            User { args, return_sort } => {
-                for i in 0..args.len() {
-                    if args[i] != input[i] {
-                        return Err(TypeCheckError::Missmatch(i, (&args[i]).into()))
-                    }
-                }
-
-                Ok(return_sort.clone())
-            },
-            Equality => {
-                if input[0] == input[1] {
-                    Ok(env.sort_bool.clone())
-                } else {
-                    Err(TypeCheckError::Missmatch(1, (&input[0]).into()))
-                }
-            },
-            Ite => {
-                if input[0] != env.sort_bool {
-                    return Err(TypeCheckError::Missmatch(0, (&env.sort_bool).into()))
-                }
-
-                if input[1] == input[2] {
-                    Ok(input[1].clone())
-                } else {
-                    Err(TypeCheckError::Missmatch(2, (&input[1]).into()))
-                }
-            },
-            _ => {
-                for (i, a) in input.iter().enumerate() {
-                    if env.sort_bool != *a {
-                        return Err(TypeCheckError::Missmatch(i, (&env.sort_bool).into()))
-                    }
-                }
-
-                Ok(env.sort_bool.clone())
-            }
         }
     }
 }

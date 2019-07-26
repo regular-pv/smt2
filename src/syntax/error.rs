@@ -34,3 +34,9 @@ impl fmt::Display for Error {
 		}
     }
 }
+
+impl crate::error::Informative for Error {
+	fn informations(&self, _i: &mut crate::error::Infos) {
+		//
+	}
+}

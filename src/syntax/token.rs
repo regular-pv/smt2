@@ -8,10 +8,10 @@ use super::Located;
  */
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Litteral {
-	/**
-	 * Signed numeric value.
-	 */
-	Int(i64),
+	// /**
+	//  * Signed numeric value.
+	//  */
+	// Int(i64),
 
 	String(String)
 }
@@ -67,7 +67,7 @@ impl fmt::Display for Litteral {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		use self::Litteral::*;
 		match self {
-			Int(i) => write!(f, "{}", i),
+			// Int(i) => write!(f, "{}", i),
 			String(string) => write!(f, "\"{}\"", string)
 		}
     }

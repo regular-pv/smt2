@@ -344,7 +344,7 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
                             Type(e) => {
                                 use typing::Error::*;
                                 let kind = match e {
-                                    Missmatch(expected, given) => Missmatch(self.upgrade_ground_sort(&expected)?, self.upgrade_ground_sort(&given)?),
+                                    Missmatch(missmatch) => panic!("TODO upgrade type missmatch"),
                                     Ambiguity => Ambiguity
                                 };
                                 Type(kind)

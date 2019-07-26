@@ -568,8 +568,12 @@ fn parse_numeral<L>(lexer: &mut Peekable<L>) -> Result<Located<i64>> where L: It
     let loc = token.span();
 
     match token.as_ref() {
-        Litteral(token::Litteral::Int(i)) => {
-            Ok(Located::new(*i, loc))
+        Ident(id) => {
+			if let Ok(i) = i64::from_str_radix(id, 10) {
+				Ok(Located::new(i, loc))
+			} else {
+				Err(Error::UnexpectedToken(Ident(id.clone()), None).at(loc))
+			}
         },
         unexpected => {
             Err(Error::UnexpectedToken(unexpected.clone(), None).at(loc))
