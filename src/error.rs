@@ -48,16 +48,22 @@ impl Infos {
 			pp.add(h_span, h_label, source_span::fmt::Style::Note);
 		}
 
+		let line_number_margin = (((viewport.last().line+1) as f32).log10() as usize) + 1;
+		let mut margin = String::new();
+		for _ in 0..line_number_margin {
+			margin.push(' ');
+		}
+
 		println!("\x1b[1;31merror\x1b[m\x1b[1;1m: {}\x1b[m", e);
-		println!("\x1b[1;34m  -->\x1b[m {} {}", file, span);
+		println!("\x1b[1;34m{}-->\x1b[m {} {}", margin, file, span);
 		print!("{}", pp.get(buffer.iter_from(viewport.start()), viewport).unwrap());
 
 		for note in i.notes.into_iter() {
 			for (n, line) in note.lines().enumerate() {
 				if n == 0 {
-					println!("\x1b[1;34m   = \x1b[m{}", line);
+					println!("\x1b[1;34m{} = \x1b[m{}", margin, line);
 				} else {
-					println!("\x1b[1;34m     \x1b[m{}", line);
+					println!("\x1b[1;34m{}   \x1b[m{}", margin, line);
 				}
 			}
 		}

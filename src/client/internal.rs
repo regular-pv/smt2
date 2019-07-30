@@ -72,7 +72,7 @@ impl<L, C: Constant, F: Function> Server for Internal<L, C, F>
 where L: fmt::Display, C: fmt::Display {
     /// Assert.
     fn assert(&mut self, term: &Typed<Term<Self>>) -> ExecResult<(), Self::Error> {
-        println!("(assert {})\n", term);
+        // println!("(assert {})\n", term);
         write!(self.server.stdin.as_mut().unwrap(), "(assert {})\n", term)?;
         Ok(())
     }

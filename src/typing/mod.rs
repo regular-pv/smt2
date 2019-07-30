@@ -55,7 +55,10 @@ pub struct GroundTypeRef<S: Sort> {
 impl<S: Sort> TypeRef<S> {
     fn into_ground_sort(&self) -> std::result::Result<GroundSort<S>, ()> {
         match self {
-            TypeRef::Var(_, _) => Err(()),
+            TypeRef::Var(_, _) => {
+                println!("ambiguity on {:?}", self);
+                Err(())
+            },
             TypeRef::Ground(g) => {
                 let mut parameters = Vec::with_capacity(g.parameters.len());
                 for p in &g.parameters {
@@ -253,22 +256,28 @@ impl<S: Sort> TypeChecker<S> {
         }
     }
 
-    pub fn redirected(&self, ty: TypeRef<S>) -> TypeRef<S> {
+    pub fn redirected(&self, ty: &TypeRef<S>) -> TypeRef<S> {
         match ty {
             TypeRef::Var(id, span) => {
-                match &self.knowledge[id] {
-                    TypeRef::Var(next, _) if *next != id => {
-                        self.redirected(TypeRef::Var(*next, span))
+                match &self.knowledge[*id] {
+                    TypeRef::Var(next, _) if next != id => {
+                        self.redirected(&TypeRef::Var(*next, *span))
                     },
-                    ty => ty.clone()
+                    TypeRef::Var(_, _) => ty.clone(),
+                    ground => self.redirected(ground)
                 }
             },
-            ty => ty.clone()
+            TypeRef::Ground(g) => {
+                TypeRef::Ground(GroundTypeRef {
+                    sort: g.sort.clone(),
+                    parameters: g.parameters.iter().map(|p| self.redirected(p)).collect()
+                })
+            }
         }
     }
 
     pub fn unify(&self, expected: TypeRef<S>, given: TypeRef<S>, root: bool, span: Span) -> std::result::Result<(TypeRef<S>, Vec<Constraint<S>>), SortMissmatch<S>> {
-        match (self.redirected(expected), self.redirected(given)) {
+        match (self.redirected(&expected), self.redirected(&given)) {
              (TypeRef::Var(a, span_a), TypeRef::Var(b, span_b)) => {
                  let constraints = if root {
                      Vec::new()
@@ -290,23 +299,56 @@ impl<S: Sort> TypeChecker<S> {
                      let sort = a.sort;
                      let mut parameters = Vec::new();
                      let mut constraints = Vec::new();
+
+                     let mut mismatch_parameters = Vec::new();
+
                      for (a, b) in a.parameters.into_iter().zip(b.parameters.into_iter()) {
-                         let (c, mut sub_constraints) = self.unify(a, b, false, span)?;
-                         constraints.append(&mut sub_constraints);
-                         parameters.push(c);
+                         if mismatch_parameters.is_empty() {
+                             match self.unify(a, b, false, span) {
+                                 Ok((c, mut sub_constraints)) => {
+                                     constraints.append(&mut sub_constraints);
+                                     parameters.push(c);
+                                 },
+                                 Err(e) => {
+                                     for c in parameters.drain(..) {
+                                         mismatch_parameters.push(c.into())
+                                     }
+                                     mismatch_parameters.push(e);
+                                 }
+                             }
+                         } else {
+                             mismatch_parameters.push(a.into());
+                         }
                      }
 
-                     Ok((TypeRef::Ground(GroundTypeRef {
-                         sort: sort,
-                         parameters: parameters
-                     }), constraints))
+                     if !mismatch_parameters.is_empty() {
+                         Err(SortMissmatch::Match {
+                             sort: sort,
+                             parameters: mismatch_parameters
+                         })
+                     } else {
+                         Ok((TypeRef::Ground(GroundTypeRef {
+                             sort: sort,
+                             parameters: parameters
+                         }), constraints))
+                     }
                  }
              },
-             (TypeRef::Var(_, _), b) => {
-                 Ok((b, vec![]))
+             (TypeRef::Var(a, span_a), b) => {
+                 let constraints = if root {
+                     Vec::new()
+                 } else {
+                     vec![(TypeRef::Var(a, span_a), b.clone(), span)]
+                 };
+                 Ok((b, constraints))
              },
-             (a, TypeRef::Var(_, _)) => {
-                 Ok((a, vec![]))
+             (a, TypeRef::Var(b, span_b)) => {
+                 let constraints = if root {
+                     Vec::new()
+                 } else {
+                     vec![(a.clone(), TypeRef::Var(b, span_b), span)]
+                 };
+                 Ok((a, constraints))
              }
         }
     }
@@ -318,6 +360,7 @@ impl<S: Sort> TypeChecker<S> {
             self.constraints.clear();
 
             for (a, b, span) in constraints.into_iter() {
+                // println!("{:?} = {:?}", a, b);
                 match (a, b) {
                     (TypeRef::Var(expected, expected_span), TypeRef::Var(given, given_span)) => {
                         let (expected_rep, expected_ty) = self.representant(expected);
@@ -362,6 +405,7 @@ impl<S: Sort> TypeChecker<S> {
                         match self.unify(expected_ty, given_ty, true, span) {
                             Err(e) => return Err(Error::Missmatch(e).at(given_span)),
                             Ok((union, mut new_constraints)) => {
+                                // println!("{} union {:?}", given_rep, union);
                                 self.knowledge[given_rep] = union;
                                 self.constraints.append(&mut new_constraints);
                             }
@@ -378,7 +422,7 @@ impl<S: Sort> TypeChecker<S> {
     pub unsafe fn apply(&self) -> Result<(), S> {
         for (id, ptr) in &self.pointers {
             let span = self.spans[*id];
-            match self.redirected(TypeRef::Var(*id, span)).into_ground_sort() {
+            match self.redirected(&TypeRef::Var(*id, span)).into_ground_sort() {
                 Ok(sort) => {
                     std::ptr::write(*ptr, Some(sort));
                 },
