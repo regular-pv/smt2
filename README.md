@@ -14,6 +14,11 @@ of the language.
 It can be used to create your own SMT-LIB compliant solver,
 or to interact with existing solvers.
 
+There is still some work to do to cover the whole language.
+The crate is no longer actively developed, but new features can be added on demand.
+If some part of the language you need is not handled, please open an issue.
+New contributions are welcome.
+
 ## License
 
 Licensed under either of
