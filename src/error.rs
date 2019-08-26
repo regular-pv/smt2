@@ -2,7 +2,7 @@ use std::result;
 use std::fmt;
 use source_span::Span;
 use crate::{syntax, typing};
-use crate::{Located, GroundSort, AbstractGroundSort, Environment};
+use crate::{Located, Environment};
 
 pub struct Infos {
 	content: String,

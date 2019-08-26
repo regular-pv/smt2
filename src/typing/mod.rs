@@ -1,15 +1,12 @@
-use std::marker::PhantomData;
 use std::collections::HashMap;
 use std::convert::AsRef;
 use std::fmt;
-use ena::unify::{UnifyKey, UnifyValue, UnificationTable, InPlace};
 use source_span::Span;
 use crate::{
     Environment,
     Sort,
     SortedWith,
     GroundSort,
-    Function,
     Command,
     Term,
     Pattern,
@@ -529,7 +526,7 @@ impl<E: Environment> Typable for Pattern<E> {
     type Sort = E::Sort;
     type Environment = E;
 
-    fn type_decoration(&mut self, checker: &mut TypeChecker<E::Sort>, env: &E, this_type: TypeRef<E::Sort>) {
+    fn type_decoration(&mut self, _checker: &mut TypeChecker<E::Sort>, _env: &E, _this_type: TypeRef<E::Sort>) {
         panic!("TODO typecheck pattern")
     }
 }

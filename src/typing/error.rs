@@ -1,6 +1,6 @@
 use std::fmt;
 use source_span::Span;
-use crate::{Located, Sort, GroundSort};
+use crate::{Located, Sort};
 use super::TypeRef;
 
 pub enum Error<S: Sort> {
@@ -38,7 +38,6 @@ impl<S: Sort + fmt::Display> crate::error::Informative for Error<S> {
             Ambiguity => {
                 i.set_label(format!("use the `(as {} <sort>)` type coercion construct to remove the ambiguity", i.content()));
             }
-			_ => ()
 		}
 	}
 }
