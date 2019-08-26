@@ -3,7 +3,14 @@ name = "smt2"
 version = "0.1.0"
 authors = ["Timothée Haudebourg <timothee.haudebourg@irisa.fr>"]
 edition = "2018"
+categories = ["science", "parsing"]
+keywords = ["parsing", "satisfiability", "smt", "smt2", "solver", "smt-lib", "sat"]
+description = "A SMT-LIB 2.6 parsing/formatting library for Rust"
+repository = "https://github.com/regular-pv/smt2"
+documentation = "https://docs.rs/smt2"
+license = "MIT/Apache-2.0"
+readme = "README.md"
 
 [dependencies]
-utf8-decode = "*"
-source-span = { path = "/home/timothee/documents/projects/hemisemi/utils/parsing/source-span" }
+utf8-decode = "1.0.1"
+source-span = "1.3.0"
