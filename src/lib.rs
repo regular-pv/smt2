@@ -1,6 +1,5 @@
 #![feature(trait_alias)]
 
-extern crate ena;
 extern crate source_span;
 
 use std::fmt;
@@ -986,22 +985,6 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
                             compiled_args.push(term);
                         }
 
-                        // let expected_type = fun.sort(env, i).unwrap();
-                        // let given_type = term.sort(env, ctx);
-                        // if given_type != expected_type {
-                        //     return Err(Error::TypeMissmatch(expected_type, given_type).at(arg.location().clone()))
-                        // }
-
-                        // let sort = match fun.typecheck(env, &args_types) {
-                        //     Ok(sort) => sort,
-                        //     Err(TypeCheckError::Missmatch(i, expected_type)) => {
-                        //         return Err(Error::TypeMissmatch(expected_type, args_types[i].clone()).at(args[i].span()))
-                        //     },
-                        //     Err(TypeCheckError::Ambiguity(_)) => {
-                        //         return Err(Error::TypeAmbiguity.at(loc))
-                        //     }
-                        // };
-
                         Ok(Term::Apply {
                             fun: fun,
                             args: Box::new(compiled_args)
@@ -1017,7 +1000,7 @@ pub fn compile_term<E: Compiler>(env: &E, ctx: &Context<E>, term: &Located<synta
                 }
             }
         },
-        syntax::Term::Coerce { term, sort } => {
+        syntax::Term::Coerce { term: _, sort: _ } => {
             panic!("TODO compile type coercion")
         }
     };
