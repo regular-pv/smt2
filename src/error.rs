@@ -1,8 +1,18 @@
 use std::result;
 use std::fmt;
-use source_span::Span;
-use crate::{syntax, typing};
-use crate::{Located, Environment};
+use source_span::{
+	Span,
+	SourceBuffer,
+	Metrics
+};
+use crate::{
+	syntax,
+	typing
+};
+use crate::{
+	Located,
+	Environment
+};
 
 pub struct Infos {
 	content: String,
@@ -28,8 +38,8 @@ impl Infos {
 		self.highlights.push((span, label))
 	}
 
-	pub fn print_at<I: Informative + fmt::Display, F: fmt::Display, B: Iterator<Item = std::io::Result<char>>>(e: &I, file: F, buffer: &source_span::lazy::Buffer<B>, viewport: Span, span: Span) {
-		let content = buffer.iter_span(span).into_string().unwrap();
+	pub fn print_at<I: Informative + fmt::Display, F: fmt::Display, E, B: Iterator<Item = result::Result<char, E>>, M: Metrics>(e: &I, file: F, buffer: &SourceBuffer<E, B, M>, viewport: Span, span: Span, metrics: &M) -> result::Result<(), E> {
+		let content = buffer.iter_span(span).into_string()?;
 
 		let mut i = Infos {
 			content: content,
@@ -56,7 +66,7 @@ impl Infos {
 
 		println!("\x1b[1;31merror\x1b[m\x1b[1;1m: {}\x1b[m", e);
 		println!("\x1b[1;34m{}-->\x1b[m {} {}", margin, file, span);
-		print!("{}", pp.get(buffer.iter_from(viewport.start()), viewport).unwrap());
+		print!("{}", pp.render(buffer.iter_from(viewport.start()), viewport, metrics)?);
 
 		for note in i.notes.into_iter() {
 			for (n, line) in note.lines().enumerate() {
@@ -67,11 +77,13 @@ impl Infos {
 				}
 			}
 		}
+
+		Ok(())
 	}
 
-	pub fn print<T: Informative + fmt::Display, F: fmt::Display, B: Iterator<Item = std::io::Result<char>>>(e: Located<T>, file: F, buffer: &source_span::lazy::Buffer<B>, viewport: Span) {
+	pub fn print<T: Informative + fmt::Display, F: fmt::Display, E, B: Iterator<Item = result::Result<char, E>>, M: Metrics>(e: Located<T>, file: F, buffer: &SourceBuffer<E, B, M>, viewport: Span, metrics: &M) -> result::Result<(), E> {
 		let span = e.span();
-		Self::print_at(e.as_ref(), file, buffer, viewport, span)
+		Self::print_at(e.as_ref(), file, buffer, viewport, span, metrics)
 	}
 }
 

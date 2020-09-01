@@ -99,8 +99,8 @@ impl Parsable for Model {
 
 		match peek(lexer)?.as_ref() {
 			// this "model" keyword token does not appear in the SMT2-lib specification.
-			// however it seems to be pretty standard... In this case we can also have sorts
-			// declarations in the model.
+			// however it seems to be pretty standard... In this case we can also have sorts and
+			// functions declarations in the model.
 			Ident(ref name) if name.as_str() == "model" => {
 				consume(lexer)?;
 				definitions = Vec::new();
@@ -118,7 +118,7 @@ impl Parsable for Model {
 											let def = Definition::parse_at(lexer, item_loc)?;
 											definitions.push(def);
 										},
-										"declare-sort" => {
+										"declare-sort" => { // non standard
 											consume(lexer)?;
 											let id = Symbol::parse(lexer)?;
 											let arity = parse_numeral(lexer)?;
@@ -131,6 +131,17 @@ impl Parsable for Model {
 											}, decl_loc);
 
 											sorts.push(decl);
+										},
+										"declare-fun" => { // non standard
+											consume(lexer)?;
+											let _id = Symbol::parse(lexer)?;
+											consume_token(lexer, Begin)?;
+											let _args: Vec<Located<Sort>> = parse_list(lexer, &mut loc)?;
+											let _return_sort = Sort::parse(lexer)?;
+
+											let _decl_loc = item_loc.union(consume_token(lexer, End)?);
+
+											// TODO should we keep the non-standard function declaration?
 										},
 										unexpected => return Err(Error::UnexpectedToken(Ident(unexpected.to_string()), None).at(id_loc))
 									}

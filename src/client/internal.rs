@@ -1,22 +1,43 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 use utf8_decode::UnsafeDecoder;
-use source_span::Position;
+use source_span::{
+	Position,
+	DefaultMetrics
+};
 use super::*;
 use super::error::InternalError;
 
 pub struct Internal<L, C: Clone + PartialEq, F: Function> {
 	pub sort_bool: GroundSort<Ident>,
-	pub server: process::Child,
 	pub functions_ids: HashMap<F, InternalFunction<F>>,
 	pub ids_functions: HashMap<Ident, InternalFunction<F>>,
-	pub l: PhantomData<L>,
-	pub c: PhantomData<C>
+	server: process::Child,
+	lexer: Peekable<Lexer<UnsafeDecoder<std::io::Bytes<std::process::ChildStdout>>, DefaultMetrics>>,
+	l: PhantomData<L>,
+	c: PhantomData<C>,
 }
 
 impl<L, C: Clone + PartialEq, F: Function> Internal<L, C, F> {
-	fn lexer(&mut self) -> Peekable<Lexer<UnsafeDecoder<std::io::Bytes<&mut std::process::ChildStdout>>>> {
-		Lexer::new(UnsafeDecoder::new(self.server.stdout.as_mut().unwrap().by_ref().bytes()), Position::default()).peekable()
+	pub fn new(sort_bool: GroundSort<Ident>, mut server: process::Child) -> Internal<L, C, F> {
+		let server_stdout = server.stdout.take().unwrap();
+
+		Internal {
+			sort_bool,
+			server,
+			functions_ids: HashMap::new(),
+			ids_functions: HashMap::new(),
+			lexer: Lexer::new(UnsafeDecoder::new(server_stdout.bytes()), Position::default(), source_span::DEFAULT_METRICS).peekable(),
+			l: PhantomData,
+			c: PhantomData,
+		}
+	}
+}
+
+impl<L, C: Clone + PartialEq, F: Function> Internal<L, C, F> {
+	fn lexer(&mut self) -> &mut Peekable<Lexer<UnsafeDecoder<std::io::Bytes<std::process::ChildStdout>>, DefaultMetrics>> {
+		&mut self.lexer
+		//Lexer::new(UnsafeDecoder::new(self.server.stdout.as_mut().unwrap().by_ref().bytes()), Position::default(), metrics).peekable()
 		// Lexer::new(Decoder::new_verbose(self.server.stdout.as_mut().unwrap().by_ref().bytes()), id, Cursor::default()).peekable()
 	}
 }
@@ -72,26 +93,29 @@ impl<L, C: Constant, F: Function> Server for Internal<L, C, F>
 where L: fmt::Display, C: fmt::Display {
 	/// Assert.
 	fn assert(&mut self, term: &Typed<Term<Self>>) -> ExecResult<(), Self::Error> {
-		// println!("(assert {})\n", term);
+		// println!("(assert {})", term);
 		write!(self.server.stdin.as_mut().unwrap(), "(assert {})\n", term)?;
 		Ok(())
 	}
 
 	/// Check satifiability.
 	fn check_sat(&mut self) -> ExecResult<response::CheckSat, Self::Error> {
+		// println!("(check-sat)");
 		write!(self.server.stdin.as_mut().unwrap(), "(check-sat)\n")?;
-		let ast = syntax::response::CheckSat::parse(&mut self.lexer())?;
+		let ast = syntax::response::CheckSat::parse(self.lexer())?;
 		Ok(response::compile_check_sat(self, &ast)?)
 	}
 
 	/// Declare a new constant.
 	fn declare_const(&mut self, id: &Self::Ident, sort: &GroundSort<Self::Sort>) -> ExecResult<(), Self::Error> {
+		// println!("(declare-const {} {})", id, sort);
 		write!(self.server.stdin.as_mut().unwrap(), "(declare-const {} {})\n", id, sort)?;
 		Ok(())
 	}
 
 	/// Declare new sort.
 	fn declare_sort(&mut self, decl: &SortDeclaration<Self>) -> ExecResult<(), Self::Error> {
+		// println!("(declare-sort {} {})", decl.id, decl.arity);
 		write!(self.server.stdin.as_mut().unwrap(), "(declare-sort {} {})\n", decl.id, decl.arity)?;
 		Ok(())
 	}
@@ -104,6 +128,7 @@ where L: fmt::Display, C: fmt::Display {
 		//	 return_sort: return_sort.clone()
 		// };
 		// self.functions.insert(id.clone(), Rc::new(ifun));
+		// println!("(declare-fun {} ({}) {})", id, PList(args), return_sort);
 		write!(self.server.stdin.as_mut().unwrap(), "(declare-fun {} ({}) {})\n", id, PList(args), return_sort)?;
 		Ok(())
 	}
@@ -121,13 +146,15 @@ where L: fmt::Display, C: fmt::Display {
 
 	/// Get model.
 	fn get_model(&mut self) -> ExecResult<response::Model<Self>, Self::Error> {
+		// println!("(get-model)");
 		write!(self.server.stdin.as_mut().unwrap(), "(get-model)\n")?;
-		let ast = syntax::response::Model::parse(&mut self.lexer())?;
+		let ast = syntax::response::Model::parse(self.lexer())?;
 		Ok(response::compile_model(self, &ast)?)
 	}
 
 	/// Set the solver's logic.
 	fn set_logic(&mut self, logic: &Self::Logic) -> ExecResult<(), Self::Error> {
+		// println!("(set-logic {})", logic);
 		write!(self.server.stdin.as_mut().unwrap(), "(set-logic {})", logic)?;
 		Ok(())
 	}

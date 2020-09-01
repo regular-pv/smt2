@@ -1,24 +1,30 @@
 use std::io;
 use std::iter::Peekable;
-use source_span::{Position, Span};
+use source_span::{
+	Position,
+	Span,
+	Metrics
+};
 use crate::Located;
 use super::{token, Token, Result, Error};
 
-pub struct Lexer<R: Iterator<Item=io::Result<char>>> {
+pub struct Lexer<R: Iterator<Item=io::Result<char>>, M: Metrics> {
 	decoder: Peekable<R>,
-	location: Span
+	location: Span,
+	metrics: M
 }
 
 fn is_separator(c: char) -> bool {
 	c == '.' || c == ';' || c == ':' || c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']' || c == ','
 }
 
-impl<R: Iterator<Item = io::Result<char>>> Lexer<R> {
-	pub fn new(source: R, cursor: Position) -> Lexer<R> {
+impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Lexer<R, M> {
+	pub fn new(source: R, cursor: Position, metrics: M) -> Lexer<R, M> {
 		Lexer {
 			decoder: source.peekable(),
 			location: cursor.into(),
-			//buffer: Buffer::new(cursor)
+			//buffer: Buffer::new(cursor),
+			metrics
 		}
 	}
 
@@ -49,7 +55,7 @@ impl<R: Iterator<Item = io::Result<char>>> Lexer<R> {
 	fn consume(&mut self) -> Result<char> {
 		match self.decoder.next() {
 			Some(Ok(c)) => {
-				self.location.push(c);
+				self.location.push(c, &self.metrics);
 				Ok(c)
 			},
 			Some(Err(e)) => {
@@ -227,7 +233,7 @@ impl<R: Iterator<Item = io::Result<char>>> Lexer<R> {
 	}
 }
 
-impl<R: Iterator<Item = io::Result<char>>> Iterator for Lexer<R> {
+impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Iterator for Lexer<R, M> {
 	type Item = Result<Located<Token>>;
 
 	fn next(&mut self) -> Option<Result<Located<Token>>> {

@@ -27,7 +27,6 @@ pub trait Sort: Clone + Hash + Eq + fmt::Debug {
 	fn arity(&self) -> usize;
 }
 
-pub trait Function = Clone + Hash + Eq + fmt::Display;
 pub trait Constant: Clone + PartialEq + TryFrom<String> {
 	fn sort_id(&self) -> &String;
 
@@ -99,14 +98,7 @@ where L: fmt::Display, C: fmt::Display {
 
 		// let file = unsafe { File::from_raw_fd(server.stdout.as_ref().unwrap().as_raw_fd()) };
 
-		let internal = Internal {
-			sort_bool: GroundSort::new(ident_bool),
-			server: server,
-			functions_ids: HashMap::new(),
-			ids_functions: HashMap::new(),
-			l: PhantomData,
-			c: PhantomData
-		};
+		let internal = Internal::new(GroundSort::new(ident_bool), server);
 
 		let mut client = Client {
 			internal: internal,
@@ -231,3 +223,5 @@ where L: fmt::Display, C: fmt::Display {
 		self.upgrade_result(r)
 	}
 }
+
+pub trait Function = Clone + Hash + Eq + fmt::Display;
