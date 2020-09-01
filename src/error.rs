@@ -130,7 +130,7 @@ impl<E: Environment> fmt::Display for Error<E> where E::Sort: fmt::Display, E::I
 			},
 			Type(e) => write!(f, "{}", e)
 		}
-    }
+	}
 }
 
 impl<E: Environment> Informative for Error<E> where E::Sort: fmt::Display, E::Ident: fmt::Display {

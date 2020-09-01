@@ -46,13 +46,13 @@ impl<T: Eq> Eq for Located<T> {}
 impl<T: fmt::Display> fmt::Display for Located<T> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		self.t.fmt(f)
-    }
+	}
 }
 
 impl<T: fmt::Debug> fmt::Debug for Located<T> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		self.t.fmt(f)
-    }
+	}
 }
 
 impl<T: Clone> Clone for Located<T> {

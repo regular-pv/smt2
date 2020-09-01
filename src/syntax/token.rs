@@ -51,7 +51,7 @@ impl Token {
 }
 
 impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		use self::Token::*;
 		match self {
 			EndOfFile => write!(f, "<end of file>"),
@@ -60,15 +60,15 @@ impl fmt::Display for Token {
 			Ident(id) => write!(f, "{}", id),
 			Litteral(lit) => write!(f, "{}", lit)
 		}
-    }
+	}
 }
 
 impl fmt::Display for Litteral {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		use self::Litteral::*;
 		match self {
 			// Int(i) => write!(f, "{}", i),
 			String(string) => write!(f, "\"{}\"", string)
 		}
-    }
+	}
 }

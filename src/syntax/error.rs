@@ -32,7 +32,7 @@ impl fmt::Display for Error {
 			UnknownCommand(name) => write!(f, "unknown command `{}'", name),
 			Server(name) => write!(f, "server error: {}", name)
 		}
-    }
+	}
 }
 
 impl crate::error::Informative for Error {
