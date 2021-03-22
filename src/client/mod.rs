@@ -224,4 +224,10 @@ where L: fmt::Display, C: fmt::Display {
 	}
 }
 
+// TODO: unify once the unstable feature is stabilized.
+#[cfg(feature = "nightly")]
 pub trait Function = Clone + Hash + Eq + fmt::Display;
+#[cfg(not(feature = "nightly"))]
+pub trait Function: Clone + Hash + Eq + fmt::Display {}
+#[cfg(not(feature = "nightly"))]
+impl<T> Function for T where T: Clone + Hash + Eq + fmt::Display {}
