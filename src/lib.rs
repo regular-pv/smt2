@@ -1,6 +1,4 @@
-#![feature(trait_alias)]
-
-extern crate source_span;
+#![cfg_attr(feature = "nightly", feature(trait_alias))]
 
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -822,7 +820,13 @@ pub trait Function<E: Environment> {
 	// fn typecheck(&self, checker: &mut TypeChecker<E::Sort>, env: &E, args: &[TypeRef<E::Sort>], return_sort: TypeRef<E::Sort>);
 }
 
+// TODO: unify once the unstable feature is stabilized.
+#[cfg(feature = "nightly")]
 pub trait Sort = Clone + PartialEq + fmt::Debug;
+#[cfg(not(feature = "nightly"))]
+pub trait Sort: Clone + PartialEq + fmt::Debug {}
+#[cfg(not(feature = "nightly"))]
+impl<T> Sort for T where T: Clone + PartialEq + fmt::Debug {}
 
 /// SMT2-lib solver environment.
 pub trait Environment: Sized {
