@@ -1,19 +1,19 @@
-use std::fmt;
-use crate::PList;
 use super::Located;
+use crate::PList;
+use std::fmt;
 
 /**
  * Symbol.
  */
 #[derive(Clone, Debug)]
 pub struct Symbol {
-	pub id: String
+	pub id: String,
 }
 
 impl Symbol {
 	pub fn format<T: fmt::Display>(t: T) -> Symbol {
 		Symbol {
-			id: format!("{}", t)
+			id: format!("{}", t),
 		}
 	}
 }
@@ -44,7 +44,7 @@ impl fmt::Display for Symbol {
 #[derive(Clone, Debug)]
 pub enum Index {
 	Numeral(i64),
-	Symbol(Symbol)
+	Symbol(Symbol),
 }
 
 impl fmt::Display for Index {
@@ -52,7 +52,7 @@ impl fmt::Display for Index {
 		use Index::*;
 		match self {
 			Numeral(i) => write!(f, "{}", i),
-			Symbol(s) => write!(f, "{}", s)
+			Symbol(s) => write!(f, "{}", s),
 		}
 	}
 }
@@ -65,16 +65,19 @@ impl fmt::Display for Index {
 #[derive(Clone, Debug)]
 pub struct Ident {
 	pub id: Located<Symbol>,
-	pub indexes: Vec<Located<Index>>
+	pub indexes: Vec<Located<Index>>,
 }
 
 impl From<Located<Symbol>> for Located<Ident> {
 	fn from(sym: Located<Symbol>) -> Self {
 		let span = sym.span();
-		Located::new(Ident {
-			id: sym,
-			indexes: Vec::new()
-		}, span)
+		Located::new(
+			Ident {
+				id: sym,
+				indexes: Vec::new(),
+			},
+			span,
+		)
 	}
 }
 
@@ -90,7 +93,7 @@ impl fmt::Display for Ident {
 
 #[derive(Clone)]
 pub struct Keyword {
-	pub id: String
+	pub id: String,
 }
 
 impl fmt::Display for Keyword {
@@ -105,7 +108,7 @@ impl fmt::Display for Keyword {
 #[derive(Clone)]
 pub struct Attribute {
 	pub key: Located<Keyword>,
-	pub value: Option<Located<AttributeValue>>
+	pub value: Option<Located<AttributeValue>>,
 }
 
 impl fmt::Display for Attribute {
@@ -113,8 +116,8 @@ impl fmt::Display for Attribute {
 		match &self.value {
 			Some(value) => {
 				write!(f, "{} {}", self.key, value)
-			},
-			None => self.key.fmt(f)
+			}
+			None => self.key.fmt(f),
 		}
 	}
 }
@@ -126,7 +129,7 @@ impl fmt::Display for Attribute {
 pub enum AttributeValue {
 	// Const(Constant),
 	Sym(Located<Symbol>),
-	List(Vec<Located<SExpr>>)
+	List(Vec<Located<SExpr>>),
 }
 
 impl fmt::Display for AttributeValue {
@@ -135,7 +138,7 @@ impl fmt::Display for AttributeValue {
 		match self {
 			// Const(c) => c.fmt(f),
 			Sym(s) => s.fmt(f),
-			List(exprs) => PList(&exprs).fmt(f)
+			List(exprs) => PList(&exprs).fmt(f),
 		}
 	}
 }
@@ -148,7 +151,7 @@ pub enum SExpr {
 	// Const(Constant),
 	Sym(Located<Symbol>),
 	Keyword(Located<Keyword>),
-	List(Vec<Located<SExpr>>)
+	List(Vec<Located<SExpr>>),
 }
 
 impl fmt::Display for SExpr {
@@ -158,7 +161,7 @@ impl fmt::Display for SExpr {
 			// Const(c) => c.fmt(f),
 			Sym(s) => s.fmt(f),
 			Keyword(k) => k.fmt(f),
-			List(l) => PList(l).fmt(f)
+			List(l) => PList(l).fmt(f),
 		}
 	}
 }
@@ -169,7 +172,7 @@ impl fmt::Display for SExpr {
 #[derive(Clone)]
 pub struct Sort {
 	pub id: Located<Ident>,
-	pub parameters: Vec<Located<Sort>>
+	pub parameters: Vec<Located<Sort>>,
 }
 
 impl fmt::Display for Sort {
@@ -194,28 +197,28 @@ pub enum Term {
 	Ident(Located<Ident>),
 	Let {
 		bindings: Vec<Located<Binding>>,
-		body: Box<Located<Term>>
+		body: Box<Located<Term>>,
 	},
 	Forall {
 		vars: Vec<Located<SortedVar>>,
-		body: Box<Located<Term>>
+		body: Box<Located<Term>>,
 	},
 	Exists {
 		vars: Vec<Located<SortedVar>>,
-		body: Box<Located<Term>>
+		body: Box<Located<Term>>,
 	},
 	Match {
 		term: Box<Located<Term>>,
-		cases: Vec<Located<MatchCase>>
+		cases: Vec<Located<MatchCase>>,
 	},
 	Apply {
 		id: Located<Ident>,
-		args: Box<Vec<Located<Term>>>
+		args: Box<Vec<Located<Term>>>,
 	},
 	Coerce {
 		term: Box<Located<Term>>,
-		sort: Located<Sort>
-	}
+		sort: Located<Sort>,
+	},
 }
 
 impl fmt::Display for Term {
@@ -229,7 +232,7 @@ impl fmt::Display for Term {
 			Exists { vars, body } => write!(f, "(exists ({}) {})", PList(&vars), body),
 			Match { term, cases } => write!(f, "(match {}, ({}))", term, PList(cases)),
 			Apply { id, args } => write!(f, "({} {})", id, PList(&args)),
-			Coerce { term, sort } => write!(f, "(as {} {})", term, sort)
+			Coerce { term, sort } => write!(f, "(as {} {})", term, sort),
 		}
 	}
 }
@@ -237,7 +240,7 @@ impl fmt::Display for Term {
 #[derive(Clone)]
 pub struct MatchCase {
 	pub pattern: Located<Pattern>,
-	pub term: Box<Located<Term>>
+	pub term: Box<Located<Term>>,
 }
 
 impl fmt::Display for MatchCase {
@@ -249,7 +252,7 @@ impl fmt::Display for MatchCase {
 #[derive(Clone)]
 pub struct Pattern {
 	pub id: Located<Symbol>,
-	pub args: Vec<Located<Symbol>>
+	pub args: Vec<Located<Symbol>>,
 }
 
 impl fmt::Display for Pattern {
@@ -268,7 +271,7 @@ impl fmt::Display for Pattern {
 #[derive(Clone)]
 pub struct Binding {
 	pub id: Located<Symbol>,
-	pub value: Box<Located<Term>>
+	pub value: Box<Located<Term>>,
 }
 
 impl fmt::Display for Binding {
@@ -283,7 +286,7 @@ impl fmt::Display for Binding {
 #[derive(Clone)]
 pub struct SortedVar {
 	pub id: Located<Symbol>,
-	pub sort: Located<Sort>
+	pub sort: Located<Sort>,
 }
 
 impl fmt::Display for SortedVar {
@@ -299,7 +302,7 @@ impl fmt::Display for SortedVar {
 #[derive(Clone)]
 pub struct DataTypeDeclaration {
 	pub parameters: Vec<Located<Symbol>>,
-	pub constructors: Vec<Located<ConstructorDeclaration>>
+	pub constructors: Vec<Located<ConstructorDeclaration>>,
 }
 
 impl fmt::Display for DataTypeDeclaration {
@@ -314,7 +317,7 @@ impl fmt::Display for DataTypeDeclaration {
 #[derive(Clone)]
 pub struct ConstructorDeclaration {
 	pub id: Located<Symbol>,
-	pub selectors: Vec<Located<SelectorDeclaration>>
+	pub selectors: Vec<Located<SelectorDeclaration>>,
 }
 
 impl fmt::Display for ConstructorDeclaration {
@@ -329,7 +332,7 @@ impl fmt::Display for ConstructorDeclaration {
 #[derive(Clone)]
 pub struct SelectorDeclaration {
 	pub id: Located<Symbol>,
-	pub sort: Located<Sort>
+	pub sort: Located<Sort>,
 }
 
 impl fmt::Display for SelectorDeclaration {
@@ -344,7 +347,7 @@ impl fmt::Display for SelectorDeclaration {
 #[derive(Clone)]
 pub struct SortDeclaration {
 	pub id: Located<Symbol>,
-	pub arity: Located<i64>
+	pub arity: Located<i64>,
 }
 
 impl fmt::Display for SortDeclaration {
@@ -369,12 +372,15 @@ pub enum Command {
 	CheckSat,
 	DeclareConst(Located<Symbol>, Located<Sort>),
 	DeclareDatatype(Located<Symbol>, Located<DataTypeDeclaration>),
-	DeclareDatatypes(Vec<Located<SortDeclaration>>, Vec<Located<DataTypeDeclaration>>),
+	DeclareDatatypes(
+		Vec<Located<SortDeclaration>>,
+		Vec<Located<DataTypeDeclaration>>,
+	),
 	DeclareFun(Located<Symbol>, Vec<Located<Sort>>, Located<Sort>),
 	Exit,
 	GetModel,
 	SetInfo(Located<Attribute>),
-	SetLogic(Located<Symbol>)
+	SetLogic(Located<Symbol>),
 }
 
 impl fmt::Display for Command {
@@ -385,12 +391,19 @@ impl fmt::Display for Command {
 			CheckSat => write!(f, "(check-sat)"),
 			DeclareConst(id, sort) => write!(f, "(declare-const {} {})", id, sort),
 			DeclareDatatype(id, decl) => write!(f, "(declare-datatype {} {})", id, decl),
-			DeclareDatatypes(sort_decls, decls) => write!(f, "(declare-datatypes ({}) ({}))", PList(&sort_decls), PList(&decls)),
-			DeclareFun(id, args, result) => write!(f, "(declare-fun {} ({}) {})", id, PList(args), result),
+			DeclareDatatypes(sort_decls, decls) => write!(
+				f,
+				"(declare-datatypes ({}) ({}))",
+				PList(&sort_decls),
+				PList(&decls)
+			),
+			DeclareFun(id, args, result) => {
+				write!(f, "(declare-fun {} ({}) {})", id, PList(args), result)
+			}
 			Exit => write!(f, "(exit)"),
 			GetModel => write!(f, "(get-model)"),
 			SetInfo(a) => write!(f, "(set-info {})", a),
-			SetLogic(l) => write!(f, "(set-logic {})", l)
+			SetLogic(l) => write!(f, "(set-logic {})", l),
 		}
 	}
 }

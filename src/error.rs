@@ -1,24 +1,14 @@
-use std::result;
+use crate::{syntax, typing};
+use crate::{Environment, Located};
+use source_span::{Metrics, SourceBuffer, Span};
 use std::fmt;
-use source_span::{
-	Span,
-	SourceBuffer,
-	Metrics
-};
-use crate::{
-	syntax,
-	typing
-};
-use crate::{
-	Located,
-	Environment
-};
+use std::result;
 
 pub struct Infos {
 	content: String,
 	label: Option<String>,
 	notes: Vec<String>,
-	highlights: Vec<(Span, Option<String>)>
+	highlights: Vec<(Span, Option<String>)>,
 }
 
 impl Infos {
@@ -38,14 +28,27 @@ impl Infos {
 		self.highlights.push((span, label))
 	}
 
-	pub fn print_at<I: Informative + fmt::Display, F: fmt::Display, E, B: Iterator<Item = result::Result<char, E>>, M: Metrics>(e: &I, file: F, buffer: &SourceBuffer<E, B, M>, viewport: Span, span: Span, metrics: &M) -> result::Result<(), E> {
+	pub fn print_at<
+		I: Informative + fmt::Display,
+		F: fmt::Display,
+		E,
+		B: Iterator<Item = result::Result<char, E>>,
+		M: Metrics,
+	>(
+		e: &I,
+		file: F,
+		buffer: &SourceBuffer<E, B, M>,
+		viewport: Span,
+		span: Span,
+		metrics: &M,
+	) -> result::Result<(), E> {
 		let content = buffer.iter_span(span).into_string()?;
 
 		let mut i = Infos {
 			content: content,
 			label: None,
 			notes: Vec::new(),
-			highlights: Vec::new()
+			highlights: Vec::new(),
 		};
 
 		let mut pp = source_span::fmt::Formatter::new();
@@ -58,7 +61,7 @@ impl Infos {
 			pp.add(h_span, h_label, source_span::fmt::Style::Note);
 		}
 
-		let line_number_margin = (((viewport.last().line+1) as f32).log10() as usize) + 1;
+		let line_number_margin = (((viewport.last().line + 1) as f32).log10() as usize) + 1;
 		let mut margin = String::new();
 		for _ in 0..line_number_margin {
 			margin.push(' ');
@@ -66,7 +69,10 @@ impl Infos {
 
 		println!("\x1b[1;31merror\x1b[m\x1b[1;1m: {}\x1b[m", e);
 		println!("\x1b[1;34m{}-->\x1b[m {} {}", margin, file, span);
-		print!("{}", pp.render(buffer.iter_from(viewport.start()), viewport, metrics)?);
+		print!(
+			"{}",
+			pp.render(buffer.iter_from(viewport.start()), viewport, metrics)?
+		);
 
 		for note in i.notes.into_iter() {
 			for (n, line) in note.lines().enumerate() {
@@ -81,7 +87,19 @@ impl Infos {
 		Ok(())
 	}
 
-	pub fn print<T: Informative + fmt::Display, F: fmt::Display, E, B: Iterator<Item = result::Result<char, E>>, M: Metrics>(e: Located<T>, file: F, buffer: &SourceBuffer<E, B, M>, viewport: Span, metrics: &M) -> result::Result<(), E> {
+	pub fn print<
+		T: Informative + fmt::Display,
+		F: fmt::Display,
+		E,
+		B: Iterator<Item = result::Result<char, E>>,
+		M: Metrics,
+	>(
+		e: Located<T>,
+		file: F,
+		buffer: &SourceBuffer<E, B, M>,
+		viewport: Span,
+		metrics: &M,
+	) -> result::Result<(), E> {
 		let span = e.span();
 		Self::print_at(e.as_ref(), file, buffer, viewport, span, metrics)
 	}
@@ -100,7 +118,7 @@ pub enum Error<E: Environment> {
 	UndefinedVariable(E::Ident),
 	NegativeArity,
 	WrongNumberOfArguments(usize, usize, usize), // (expected_min, expected_max, given).
-	Type(typing::Error<E::Sort>)
+	Type(typing::Error<E::Sort>),
 }
 
 impl<E: Environment> Error<E> {
@@ -118,7 +136,11 @@ impl<E: Environment> From<Located<typing::Error<E::Sort>>> for Located<Error<E>>
 
 pub type Result<T, E> = result::Result<T, Located<Error<E>>>;
 
-impl<E: Environment> fmt::Display for Error<E> where E::Sort: fmt::Display, E::Ident: fmt::Display {
+impl<E: Environment> fmt::Display for Error<E>
+where
+	E::Sort: fmt::Display,
+	E::Ident: fmt::Display,
+{
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		use self::Error::*;
 		match self {
@@ -131,26 +153,42 @@ impl<E: Environment> fmt::Display for Error<E> where E::Sort: fmt::Display, E::I
 			NegativeArity => write!(f, "arity must be positive or zero"),
 			WrongNumberOfArguments(min, max, given) => {
 				if min == max {
-					write!(f, "wrong number of arguments (expected {}, given {})", min, given)
+					write!(
+						f,
+						"wrong number of arguments (expected {}, given {})",
+						min, given
+					)
 				} else {
 					if given < min {
-						write!(f, "wrong number of arguments (expected at least {}, given {})", min, given)
+						write!(
+							f,
+							"wrong number of arguments (expected at least {}, given {})",
+							min, given
+						)
 					} else {
-						write!(f, "wrong number of arguments (expected at most {}, given {})", max, given)
+						write!(
+							f,
+							"wrong number of arguments (expected at most {}, given {})",
+							max, given
+						)
 					}
 				}
-			},
-			Type(e) => write!(f, "{}", e)
+			}
+			Type(e) => write!(f, "{}", e),
 		}
 	}
 }
 
-impl<E: Environment> Informative for Error<E> where E::Sort: fmt::Display, E::Ident: fmt::Display {
+impl<E: Environment> Informative for Error<E>
+where
+	E::Sort: fmt::Display,
+	E::Ident: fmt::Display,
+{
 	fn informations(&self, i: &mut Infos) {
 		use self::Error::*;
 		match self {
 			Type(e) => e.informations(i),
-			_ => ()
+			_ => (),
 		}
 	}
 }

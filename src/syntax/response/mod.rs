@@ -1,94 +1,92 @@
-use std::iter::Peekable;
-use source_span::Span;
-use crate::Located;
 use crate::syntax::{
-	token,
-	Token,
-	Parsable,
-	Error,
-	Result,
-	peek,
-	consume,
-	consume_token,
-	parse_list,
-	parse_numeral
+	consume, consume_token, parse_list, parse_numeral, peek, token, Error, Parsable, Result, Token,
 };
+use crate::Located;
+use source_span::Span;
+use std::iter::Peekable;
 
 mod ast;
 pub mod display;
 
 pub use ast::*;
 
-fn server_error<L>(lexer: &mut Peekable<L>, mut loc: Span) -> Result<Located<Error>> where L: Iterator<Item=Result<Located<Token>>> {
+fn server_error<L>(lexer: &mut Peekable<L>, mut loc: Span) -> Result<Located<Error>>
+where
+	L: Iterator<Item = Result<Located<Token>>>,
+{
 	use Token::*;
 
 	let token = consume(lexer)?;
 	let id_loc = token.span();
 	match token.into_inner() {
-		Ident(name) => {
-			match name.as_str() {
-				"error" => {
-					let token = consume(lexer)?;
-					let message_loc = token.span();
-					match token.into_inner() {
-						Litteral(token::Litteral::String(message)) => {
-							loc = loc.union(consume_token(lexer, End)?);
-							Ok(Error::Server(message).at(loc))
-						},
-						unexpected => Err(Error::UnexpectedToken(Ident(unexpected.to_string()), None).at(message_loc))
+		Ident(name) => match name.as_str() {
+			"error" => {
+				let token = consume(lexer)?;
+				let message_loc = token.span();
+				match token.into_inner() {
+					Litteral(token::Litteral::String(message)) => {
+						loc = loc.union(consume_token(lexer, End)?);
+						Ok(Error::Server(message).at(loc))
 					}
-				},
-				unexpected => Err(Error::UnexpectedToken(Ident(unexpected.to_string()), None).at(id_loc))
+					unexpected => {
+						Err(Error::UnexpectedToken(Ident(unexpected.to_string()), None)
+							.at(message_loc))
+					}
+				}
+			}
+			unexpected => {
+				Err(Error::UnexpectedToken(Ident(unexpected.to_string()), None).at(id_loc))
 			}
 		},
-		unexpected => Err(Error::UnexpectedToken(unexpected, None).at(id_loc))
+		unexpected => Err(Error::UnexpectedToken(unexpected, None).at(id_loc)),
 	}
 }
 
-fn peek_server_error<L>(lexer: &mut Peekable<L>, loc: &Span) -> Result<()> where L: Iterator<Item=Result<Located<Token>>> {
+fn peek_server_error<L>(lexer: &mut Peekable<L>, loc: &Span) -> Result<()>
+where
+	L: Iterator<Item = Result<Located<Token>>>,
+{
 	use Token::*;
 
 	let token = peek(lexer)?;
 	match token.as_ref() {
-		Ident(name) => {
-			match name.as_str() {
-				"error" => Err(server_error(lexer, loc.clone())?),
-				_ => Ok(())
-			}
+		Ident(name) => match name.as_str() {
+			"error" => Err(server_error(lexer, loc.clone())?),
+			_ => Ok(()),
 		},
-		_ => Ok(())
+		_ => Ok(()),
 	}
 }
 
 impl Parsable for CheckSat {
-	fn parse<L>(lexer: &mut Peekable<L>) -> Result<Located<CheckSat>> where L: Iterator<Item=Result<Located<Token>>> {
+	fn parse<L>(lexer: &mut Peekable<L>) -> Result<Located<CheckSat>>
+	where
+		L: Iterator<Item = Result<Located<Token>>>,
+	{
 		use Token::*;
 
 		let token = consume(lexer)?;
 		let loc = token.span();
 		match token.into_inner() {
-			Ident(name) => {
-				match name.as_str() {
-					"sat" => {
-						Ok(Located::new(crate::response::CheckSat::Sat, loc))
-					},
-					"unsat" => {
-						Ok(Located::new(crate::response::CheckSat::Unsat, loc))
-					},
-					"unknown" => {
-						Ok(Located::new(crate::response::CheckSat::Unknown, loc))
-					},
-					unexpected => Err(Error::UnexpectedToken(Ident(unexpected.to_string()), None).at(loc))
+			Ident(name) => match name.as_str() {
+				"sat" => Ok(Located::new(crate::response::CheckSat::Sat, loc)),
+				"unsat" => Ok(Located::new(crate::response::CheckSat::Unsat, loc)),
+				"unknown" => Ok(Located::new(crate::response::CheckSat::Unknown, loc)),
+				unexpected => {
+					Err(Error::UnexpectedToken(Ident(unexpected.to_string()), None).at(loc))
 				}
 			},
 			Begin => Err(server_error(lexer, loc)?),
-			unexpected => Err(Error::UnexpectedToken(unexpected, None).at(loc))
+			unexpected => Err(Error::UnexpectedToken(unexpected, None).at(loc)),
 		}
 	}
 }
 
 impl Parsable for Model {
-	fn parse<L>(lexer: &mut Peekable<L>) -> Result<Located<Model>> where L: Iterator<Item=Result<Located<Token>>> {
+	fn parse<L>(lexer: &mut Peekable<L>) -> Result<Located<Model>>
+	where
+		L: Iterator<Item = Result<Located<Token>>>,
+	{
 		use Token::*;
 
 		let mut loc = consume_token(lexer, Begin)?;
@@ -117,59 +115,83 @@ impl Parsable for Model {
 										"define-fun" | "define-fun-rec" | "define-funs-rec" => {
 											let def = Definition::parse_at(lexer, item_loc)?;
 											definitions.push(def);
-										},
-										"declare-sort" => { // non standard
+										}
+										"declare-sort" => {
+											// non standard
 											consume(lexer)?;
 											let id = Symbol::parse(lexer)?;
 											let arity = parse_numeral(lexer)?;
 
-											let decl_loc = item_loc.union(consume_token(lexer, End)?);
+											let decl_loc =
+												item_loc.union(consume_token(lexer, End)?);
 
-											let decl = Located::new(SortDeclaration {
-												id: id,
-												arity: arity
-											}, decl_loc);
+											let decl = Located::new(
+												SortDeclaration {
+													id: id,
+													arity: arity,
+												},
+												decl_loc,
+											);
 
 											sorts.push(decl);
-										},
-										"declare-fun" => { // non standard
+										}
+										"declare-fun" => {
+											// non standard
 											consume(lexer)?;
 											let _id = Symbol::parse(lexer)?;
 											consume_token(lexer, Begin)?;
-											let _args: Vec<Located<Sort>> = parse_list(lexer, &mut loc)?;
+											let _args: Vec<Located<Sort>> =
+												parse_list(lexer, &mut loc)?;
 											let _return_sort = Sort::parse(lexer)?;
 
-											let _decl_loc = item_loc.union(consume_token(lexer, End)?);
+											let _decl_loc =
+												item_loc.union(consume_token(lexer, End)?);
 
 											// TODO should we keep the non-standard function declaration?
-										},
-										unexpected => return Err(Error::UnexpectedToken(Ident(unexpected.to_string()), None).at(id_loc))
+										}
+										unexpected => {
+											return Err(Error::UnexpectedToken(
+												Ident(unexpected.to_string()),
+												None,
+											)
+											.at(id_loc))
+										}
 									}
-								},
-								unexpected => return Err(Error::UnexpectedToken(unexpected.clone(), None).at(id_loc))
+								}
+								unexpected => {
+									return Err(
+										Error::UnexpectedToken(unexpected.clone(), None).at(id_loc)
+									)
+								}
 							}
-						},
-						End => {
-							break
-						},
-						unexpected => return Err(Error::UnexpectedToken(unexpected, None).at(item_loc))
+						}
+						End => break,
+						unexpected => {
+							return Err(Error::UnexpectedToken(unexpected, None).at(item_loc))
+						}
 					}
 				}
-			},
+			}
 			_ => {
 				definitions = parse_list(lexer, &mut loc)?;
 			}
 		}
 
-		Ok(Located::new(Model {
-			sorts: sorts,
-			definitions: definitions
-		}, loc))
+		Ok(Located::new(
+			Model {
+				sorts: sorts,
+				definitions: definitions,
+			},
+			loc,
+		))
 	}
 }
 
 impl Definition {
-	fn parse_at<L>(lexer: &mut Peekable<L>, mut loc: Span) -> Result<Located<Definition>> where L: Iterator<Item=Result<Located<Token>>> {
+	fn parse_at<L>(lexer: &mut Peekable<L>, mut loc: Span) -> Result<Located<Definition>>
+	where
+		L: Iterator<Item = Result<Located<Token>>>,
+	{
 		use Token::*;
 
 		let token = consume(lexer)?;
@@ -192,14 +214,17 @@ impl Definition {
 
 						let def_loc = id.span().union(body.span());
 
-						declarations = vec![Located::new(Declaration {
-							id: id,
-							args: args,
-							return_sort: return_sort
-						}, def_loc)];
+						declarations = vec![Located::new(
+							Declaration {
+								id: id,
+								args: args,
+								return_sort: return_sort,
+							},
+							def_loc,
+						)];
 
 						bodies = vec![body];
-					},
+					}
 					"define-fun-rec" => {
 						rec = true;
 						let id = Symbol::parse(lexer)?;
@@ -210,44 +235,57 @@ impl Definition {
 
 						let def_loc = id.span().union(body.span());
 
-						declarations = vec![Located::new(Declaration {
-							id: id,
-							args: args,
-							return_sort: return_sort
-						}, def_loc)];
+						declarations = vec![Located::new(
+							Declaration {
+								id: id,
+								args: args,
+								return_sort: return_sort,
+							},
+							def_loc,
+						)];
 
 						bodies = vec![body];
-					},
+					}
 					"define-funs-rec" => {
 						rec = true;
 						consume_token(lexer, Begin)?;
 						declarations = parse_list(lexer, &mut loc)?;
 						consume_token(lexer, Begin)?;
 						bodies = parse_list(lexer, &mut loc)?;
-					},
+					}
 					// "declare-sort" => {
 					//	 let id = Symbol::parse(lexer)?;
 					//	 let arity = parse_numeral(lexer)?;
 					// },
-					unexpected => return Err(Error::UnexpectedToken(Ident(unexpected.to_string()), None).at(id_loc))
+					unexpected => {
+						return Err(
+							Error::UnexpectedToken(Ident(unexpected.to_string()), None).at(id_loc)
+						)
+					}
 				}
-			},
-			unexpected => return Err(Error::UnexpectedToken(unexpected, None).at(id_loc))
+			}
+			unexpected => return Err(Error::UnexpectedToken(unexpected, None).at(id_loc)),
 		}
 
 		loc = loc.union(consume_token(lexer, End)?);
 
-		Ok(Located::new(Definition {
-			rec: rec,
-			declarations: declarations,
-			bodies: bodies,
-			comments: String::new()
-		}, loc))
+		Ok(Located::new(
+			Definition {
+				rec: rec,
+				declarations: declarations,
+				bodies: bodies,
+				comments: String::new(),
+			},
+			loc,
+		))
 	}
 }
 
 impl Parsable for Definition {
-	fn parse<L>(lexer: &mut Peekable<L>) -> Result<Located<Definition>> where L: Iterator<Item=Result<Located<Token>>> {
+	fn parse<L>(lexer: &mut Peekable<L>) -> Result<Located<Definition>>
+	where
+		L: Iterator<Item = Result<Located<Token>>>,
+	{
 		use Token::*;
 
 		let loc = consume_token(lexer, Begin)?;
@@ -256,7 +294,10 @@ impl Parsable for Definition {
 }
 
 impl Parsable for Declaration {
-	fn parse<L>(lexer: &mut Peekable<L>) -> Result<Located<Declaration>> where L: Iterator<Item=Result<Located<Token>>> {
+	fn parse<L>(lexer: &mut Peekable<L>) -> Result<Located<Declaration>>
+	where
+		L: Iterator<Item = Result<Located<Token>>>,
+	{
 		use Token::*;
 
 		let mut loc = consume_token(lexer, Begin)?;
@@ -266,10 +307,13 @@ impl Parsable for Declaration {
 		let return_sort = Sort::parse(lexer)?;
 		loc = loc.union(consume_token(lexer, End)?);
 
-		Ok(Located::new(Declaration {
-			id: id,
-			args: args,
-			return_sort: return_sort
-		}, loc))
+		Ok(Located::new(
+			Declaration {
+				id: id,
+				args: args,
+				return_sort: return_sort,
+			},
+			loc,
+		))
 	}
 }

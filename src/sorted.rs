@@ -1,5 +1,5 @@
+use std::cmp::{Ord, Ordering, PartialOrd};
 use std::fmt;
-use std::cmp::{Ordering, Ord, PartialOrd};
 use std::hash::{Hash, Hasher};
 
 pub trait SortedWith<S> {
@@ -24,7 +24,7 @@ impl<X: Ord, T: Ord> Ord for Sorted<X, T> {
 	fn cmp(&self, other: &Sorted<X, T>) -> Ordering {
 		match self.1.cmp(&other.1) {
 			Ordering::Equal => self.0.cmp(&other.0),
-			ord => ord
+			ord => ord,
 		}
 	}
 }
@@ -34,14 +34,14 @@ impl<X: PartialOrd, T: PartialOrd> PartialOrd for Sorted<X, T> {
 		match self.1.partial_cmp(&other.1) {
 			Some(Ordering::Equal) => self.0.partial_cmp(&other.0),
 			Some(ord) => Some(ord),
-			None => None
+			None => None,
 		}
 	}
 }
 
 impl<X: Eq, T: Eq> Eq for Sorted<X, T> {}
 
-impl<X:PartialEq, T: PartialEq> PartialEq for Sorted<X, T> {
+impl<X: PartialEq, T: PartialEq> PartialEq for Sorted<X, T> {
 	fn eq(&self, other: &Sorted<X, T>) -> bool {
 		self.1 == other.1 && self.0 == other.0
 	}

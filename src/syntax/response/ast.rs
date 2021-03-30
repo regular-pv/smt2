@@ -1,11 +1,5 @@
+pub use crate::syntax::{Sort, SortDeclaration, SortedVar, Symbol, Term};
 use crate::Located;
-pub use crate::syntax::{
-	Symbol,
-	Term,
-	SortedVar,
-	Sort,
-	SortDeclaration
-};
 
 /// (check-sat) command response.
 /// <check_sat_response> ::= sat | unsat | unknown
@@ -15,7 +9,7 @@ pub type CheckSat = crate::response::CheckSat;
 /// <get_model_response> ::= ( <model_response>* )
 pub struct Model {
 	pub sorts: Vec<Located<SortDeclaration>>,
-	pub definitions: Vec<Located<Definition>>
+	pub definitions: Vec<Located<Definition>>,
 }
 
 /// Model function definition.
@@ -27,7 +21,7 @@ pub struct Definition {
 	pub rec: bool,
 	pub declarations: Vec<Located<Declaration>>,
 	pub bodies: Vec<Located<Term>>,
-	pub comments: String
+	pub comments: String,
 }
 
 /// Function declaration.
@@ -35,5 +29,5 @@ pub struct Definition {
 pub struct Declaration {
 	pub id: Located<Symbol>,
 	pub args: Vec<Located<SortedVar>>,
-	pub return_sort: Located<Sort>
+	pub return_sort: Located<Sort>,
 }

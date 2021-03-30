@@ -1,19 +1,17 @@
+use super::error::InternalError;
+use super::*;
+use source_span::{DefaultMetrics, Position};
 use std::collections::HashMap;
 use std::rc::Rc;
 use utf8_decode::UnsafeDecoder;
-use source_span::{
-	Position,
-	DefaultMetrics
-};
-use super::*;
-use super::error::InternalError;
 
 pub struct Internal<L, C: Clone + PartialEq, F: Function> {
 	pub sort_bool: GroundSort<Ident>,
 	pub functions_ids: HashMap<F, InternalFunction<F>>,
 	pub ids_functions: HashMap<Ident, InternalFunction<F>>,
 	server: process::Child,
-	lexer: Peekable<Lexer<UnsafeDecoder<std::io::Bytes<std::process::ChildStdout>>, DefaultMetrics>>,
+	lexer:
+		Peekable<Lexer<UnsafeDecoder<std::io::Bytes<std::process::ChildStdout>>, DefaultMetrics>>,
 	l: PhantomData<L>,
 	c: PhantomData<C>,
 }
@@ -27,7 +25,12 @@ impl<L, C: Clone + PartialEq, F: Function> Internal<L, C, F> {
 			server,
 			functions_ids: HashMap::new(),
 			ids_functions: HashMap::new(),
-			lexer: Lexer::new(UnsafeDecoder::new(server_stdout.bytes()), Position::default(), source_span::DEFAULT_METRICS).peekable(),
+			lexer: Lexer::new(
+				UnsafeDecoder::new(server_stdout.bytes()),
+				Position::default(),
+				source_span::DEFAULT_METRICS,
+			)
+			.peekable(),
 			l: PhantomData,
 			c: PhantomData,
 		}
@@ -35,7 +38,11 @@ impl<L, C: Clone + PartialEq, F: Function> Internal<L, C, F> {
 }
 
 impl<L, C: Clone + PartialEq, F: Function> Internal<L, C, F> {
-	fn lexer(&mut self) -> &mut Peekable<Lexer<UnsafeDecoder<std::io::Bytes<std::process::ChildStdout>>, DefaultMetrics>> {
+	fn lexer(
+		&mut self,
+	) -> &mut Peekable<
+		Lexer<UnsafeDecoder<std::io::Bytes<std::process::ChildStdout>>, DefaultMetrics>,
+	> {
 		&mut self.lexer
 		//Lexer::new(UnsafeDecoder::new(self.server.stdout.as_mut().unwrap().by_ref().bytes()), Position::default(), metrics).peekable()
 		// Lexer::new(Decoder::new_verbose(self.server.stdout.as_mut().unwrap().by_ref().bytes()), id, Cursor::default()).peekable()
@@ -60,7 +67,13 @@ impl<L, C: Clone + PartialEq, F: Function> Environment for Internal<L, C, F> {
 		self.sort_bool.clone()
 	}
 
-	fn typecheck_function(&self, checker: &mut TypeChecker<Ident>, f: &InternalFunction<F>, input: &[TypeRef<Ident>], return_sort_ref: TypeRef<Ident>) {
+	fn typecheck_function(
+		&self,
+		checker: &mut TypeChecker<Ident>,
+		f: &InternalFunction<F>,
+		input: &[TypeRef<Ident>],
+		return_sort_ref: TypeRef<Ident>,
+	) {
 		use self::InternalFunctionSignature::*;
 		match &*f.sig {
 			User { args, return_sort } => {
@@ -68,16 +81,16 @@ impl<L, C: Clone + PartialEq, F: Function> Environment for Internal<L, C, F> {
 					checker.assert_equal(args[i].clone(), input[i].clone())
 				}
 				checker.assert_equal(return_sort.clone(), return_sort_ref);
-			},
+			}
 			Equality => {
 				checker.assert_equal(input[0].clone(), input[1].clone());
 				checker.assert_equal(self.sort_bool.clone(), return_sort_ref);
-			},
+			}
 			Ite => {
 				checker.assert_equal(self.sort_bool.clone(), input[0].clone());
 				checker.assert_equal(input[1].clone(), input[2].clone());
 				checker.assert_equal(input[1].clone(), return_sort_ref);
-			},
+			}
 			_ => {
 				for i in input.iter() {
 					checker.assert_equal(self.sort_bool.clone(), i.clone());
@@ -90,7 +103,10 @@ impl<L, C: Clone + PartialEq, F: Function> Environment for Internal<L, C, F> {
 }
 
 impl<L, C: Constant, F: Function> Server for Internal<L, C, F>
-where L: fmt::Display, C: fmt::Display {
+where
+	L: fmt::Display,
+	C: fmt::Display,
+{
 	/// Assert.
 	fn assert(&mut self, term: &Typed<Term<Self>>) -> ExecResult<(), Self::Error> {
 		// println!("(assert {})", term);
@@ -107,21 +123,40 @@ where L: fmt::Display, C: fmt::Display {
 	}
 
 	/// Declare a new constant.
-	fn declare_const(&mut self, id: &Self::Ident, sort: &GroundSort<Self::Sort>) -> ExecResult<(), Self::Error> {
+	fn declare_const(
+		&mut self,
+		id: &Self::Ident,
+		sort: &GroundSort<Self::Sort>,
+	) -> ExecResult<(), Self::Error> {
 		// println!("(declare-const {} {})", id, sort);
-		write!(self.server.stdin.as_mut().unwrap(), "(declare-const {} {})\n", id, sort)?;
+		write!(
+			self.server.stdin.as_mut().unwrap(),
+			"(declare-const {} {})\n",
+			id,
+			sort
+		)?;
 		Ok(())
 	}
 
 	/// Declare new sort.
 	fn declare_sort(&mut self, decl: &SortDeclaration<Self>) -> ExecResult<(), Self::Error> {
 		// println!("(declare-sort {} {})", decl.id, decl.arity);
-		write!(self.server.stdin.as_mut().unwrap(), "(declare-sort {} {})\n", decl.id, decl.arity)?;
+		write!(
+			self.server.stdin.as_mut().unwrap(),
+			"(declare-sort {} {})\n",
+			decl.id,
+			decl.arity
+		)?;
 		Ok(())
 	}
 
 	/// Declare new function.
-	fn declare_fun(&mut self, id: &Self::Ident, args: &Vec<GroundSort<Self::Sort>>, return_sort: &GroundSort<Self::Sort>) -> ExecResult<(), Self::Error> {
+	fn declare_fun(
+		&mut self,
+		id: &Self::Ident,
+		args: &Vec<GroundSort<Self::Sort>>,
+		return_sort: &GroundSort<Self::Sort>,
+	) -> ExecResult<(), Self::Error> {
 		// let ifun = InternalFunction<F> {
 		//	 id: id.clone(),
 		//	 args: args.clone(),
@@ -129,12 +164,22 @@ where L: fmt::Display, C: fmt::Display {
 		// };
 		// self.functions.insert(id.clone(), Rc::new(ifun));
 		// println!("(declare-fun {} ({}) {})", id, PList(args), return_sort);
-		write!(self.server.stdin.as_mut().unwrap(), "(declare-fun {} ({}) {})\n", id, PList(args), return_sort)?;
+		write!(
+			self.server.stdin.as_mut().unwrap(),
+			"(declare-fun {} ({}) {})\n",
+			id,
+			PList(args),
+			return_sort
+		)?;
 		Ok(())
 	}
 
 	/// Define previously declared sort.
-	fn define_sort(&mut self, _id: &Self::Ident, _def: &DataTypeDeclaration<Self>) -> ExecResult<(), Self::Error> {
+	fn define_sort(
+		&mut self,
+		_id: &Self::Ident,
+		_def: &DataTypeDeclaration<Self>,
+	) -> ExecResult<(), Self::Error> {
 		panic!("TODO define_sort")
 	}
 
@@ -186,7 +231,7 @@ impl<L, C: Constant, F: Function> Compiler for Internal<L, C, F> {
 				let sort = Ident::from_string(cst.sort_id());
 				let gsort = GroundSort {
 					sort: sort,
-					parameters: Vec::new()
+					parameters: Vec::new(),
 				};
 				Some(Sorted(cst, gsort))
 			} else {
@@ -201,7 +246,7 @@ impl<L, C: Constant, F: Function> Compiler for Internal<L, C, F> {
 	fn function(&self, id: &Ident) -> Option<InternalFunction<F>> {
 		match self.ids_functions.get(id) {
 			Some(f) => Some(f.clone()),
-			None => None
+			None => None,
 		}
 	}
 }
@@ -209,20 +254,20 @@ impl<L, C: Constant, F: Function> Compiler for Internal<L, C, F> {
 pub enum InternalFunctionSignature {
 	User {
 		args: Vec<GroundSort<Ident>>,
-		return_sort: GroundSort<Ident>
+		return_sort: GroundSort<Ident>,
 	},
 	Equality,
 	LogicUnary,
 	LogicBinary,
 	LogicNary,
-	Ite
+	Ite,
 }
 
 #[derive(Clone)]
 pub struct InternalFunction<F: Function> {
 	pub id: Ident,
 	pub f: F,
-	pub sig: Rc<InternalFunctionSignature>
+	pub sig: Rc<InternalFunctionSignature>,
 }
 
 impl<F: Function> InternalFunction<F> {
@@ -230,7 +275,7 @@ impl<F: Function> InternalFunction<F> {
 		InternalFunction {
 			id: id,
 			f: f,
-			sig: Rc::new(sig)
+			sig: Rc::new(sig),
 		}
 	}
 }
@@ -241,7 +286,9 @@ impl<F: Function> fmt::Display for InternalFunction<F> {
 	}
 }
 
-impl<L, C: Clone + PartialEq, F: Function> crate::Function<Internal<L, C, F>> for InternalFunction<F> {
+impl<L, C: Clone + PartialEq, F: Function> crate::Function<Internal<L, C, F>>
+	for InternalFunction<F>
+{
 	fn arity(&self, _env: &Internal<L, C, F>) -> (usize, usize) {
 		// (self.args.len(), self.args.len())
 		use self::InternalFunctionSignature::*;
@@ -251,7 +298,7 @@ impl<L, C: Clone + PartialEq, F: Function> crate::Function<Internal<L, C, F>> fo
 			LogicUnary => (1, 1),
 			LogicBinary => (2, 2),
 			LogicNary => (0, std::usize::MAX),
-			Ite => (3, 3)
+			Ite => (3, 3),
 		}
 	}
 }
@@ -267,8 +314,8 @@ impl<'a, T: 'a + fmt::Display> fmt::Display for PList<'a, T> {
 					write!(f, " ")?;
 					e.fmt(f)?
 				}
-			},
-			None => ()
+			}
+			None => (),
 		}
 
 		Ok(())

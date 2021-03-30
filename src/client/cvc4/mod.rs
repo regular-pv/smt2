@@ -4,7 +4,7 @@ use std::fmt;
 #[derive(Clone, PartialEq)]
 pub struct Constant {
 	sort: String,
-	index: u32
+	index: u32,
 }
 
 impl super::Constant for Constant {
@@ -33,9 +33,9 @@ impl TryFrom<String> for Constant {
 				for c in chars {
 					if in_index {
 						if let Some(d) = c.to_digit(10) {
-							index = index*10 + d;
+							index = index * 10 + d;
 						} else {
-							return Err(NotCVC4Constant)
+							return Err(NotCVC4Constant);
 						}
 					} else {
 						if c == '_' {
@@ -49,8 +49,8 @@ impl TryFrom<String> for Constant {
 				if !sort.is_empty() {
 					return Ok(Constant {
 						sort: sort,
-						index: index
-					})
+						index: index,
+					});
 				}
 			}
 		}
