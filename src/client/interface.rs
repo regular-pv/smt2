@@ -13,17 +13,23 @@
 // use crate::*;
 // use syntax::Parsable;
 
-use super::*;
 use super::error::InternalError;
+use super::*;
 
 impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
-	pub(crate) fn downgrade_term(&self, term: &Typed<Term<Self>>) -> ExecResult<Typed<Term<Internal<L, C, F>>>, Error<L, C, S, F>> {
+	pub(crate) fn downgrade_term(
+		&self,
+		term: &Typed<Term<Self>>,
+	) -> ExecResult<Typed<Term<Internal<L, C, F>>>, Error<L, C, S, F>> {
 		use Term::*;
 		let kind: ExecResult<Term<Internal<L, C, F>>, Error<L, C, S, F>> = match term.as_ref() {
 			Const(Sorted(c, sort)) => {
 				Ok(Const(Sorted(c.clone(), self.downgrade_ground_sort(sort)?)))
-			},
-			Var { index, id } => Ok(Var { index: *index, id: id.clone() }),
+			}
+			Var { index, id } => Ok(Var {
+				index: *index,
+				id: id.clone(),
+			}),
 			Let { bindings, body } => {
 				let mut internal_bindings = Vec::with_capacity(bindings.len());
 				for b in bindings.iter() {
@@ -31,9 +37,9 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 				}
 				Ok(Let {
 					bindings: internal_bindings,
-					body: Box::new(self.downgrade_term(body)?)
+					body: Box::new(self.downgrade_term(body)?),
 				})
-			},
+			}
 			Forall { vars, body } => {
 				let mut internal_vars = Vec::with_capacity(vars.len());
 				for x in vars.iter() {
@@ -41,9 +47,9 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 				}
 				Ok(Forall {
 					vars: internal_vars,
-					body: Box::new(self.downgrade_term(body)?)
+					body: Box::new(self.downgrade_term(body)?),
 				})
-			},
+			}
 			Exists { vars, body } => {
 				let mut internal_vars = Vec::with_capacity(vars.len());
 				for x in vars.iter() {
@@ -51,9 +57,9 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 				}
 				Ok(Exists {
 					vars: internal_vars,
-					body: Box::new(self.downgrade_term(body)?)
+					body: Box::new(self.downgrade_term(body)?),
 				})
-			},
+			}
 			Match { term, cases } => {
 				let mut internal_cases = Vec::with_capacity(cases.len());
 				for c in cases {
@@ -61,9 +67,9 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 				}
 				Ok(Match {
 					term: Box::new(self.downgrade_term(term)?),
-					cases: internal_cases
+					cases: internal_cases,
 				})
-			},
+			}
 			Apply { fun, args } => {
 				let mut internal_args = Vec::with_capacity(args.len());
 				for a in args.iter() {
@@ -71,30 +77,49 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 				}
 				Ok(Apply {
 					fun: self.downgrade_function(fun)?,
-					args: Box::new(internal_args)
+					args: Box::new(internal_args),
 				})
 			}
 		};
-		Ok(Typed::new(kind?, term.span(), self.downgrade_ground_sort(term.sort())?))
+		Ok(Typed::new(
+			kind?,
+			term.span(),
+			self.downgrade_ground_sort(term.sort())?,
+		))
 	}
 
-	pub(crate) fn downgrade_case(&self, _case: &MatchCase<Self>) -> ExecResult<MatchCase<Internal<L, C, F>>, Error<L, C, S, F>> {
+	pub(crate) fn downgrade_case(
+		&self,
+		_case: &MatchCase<Self>,
+	) -> ExecResult<MatchCase<Internal<L, C, F>>, Error<L, C, S, F>> {
 		panic!("TODO")
 	}
 
-	pub(crate) fn downgrade_pattern(&self, _pattern: &Typed<Pattern<Self>>) -> ExecResult<Typed<Pattern<Internal<L, C, F>>>, Error<L, C, S, F>> {
+	pub(crate) fn downgrade_pattern(
+		&self,
+		_pattern: &Typed<Pattern<Self>>,
+	) -> ExecResult<Typed<Pattern<Internal<L, C, F>>>, Error<L, C, S, F>> {
 		panic!("TODO")
 	}
 
-	pub(crate) fn downgrade_binding(&self, _binding: &Binding<Self>) -> ExecResult<Binding<Internal<L, C, F>>, Error<L, C, S, F>> {
+	pub(crate) fn downgrade_binding(
+		&self,
+		_binding: &Binding<Self>,
+	) -> ExecResult<Binding<Internal<L, C, F>>, Error<L, C, S, F>> {
 		panic!("TODO")
 	}
 
-	pub(crate) fn downgrade_sorted_var(&self, _x: &SortedVar<Self>) -> ExecResult<SortedVar<Internal<L, C, F>>, Error<L, C, S, F>> {
+	pub(crate) fn downgrade_sorted_var(
+		&self,
+		_x: &SortedVar<Self>,
+	) -> ExecResult<SortedVar<Internal<L, C, F>>, Error<L, C, S, F>> {
 		panic!("TODO")
 	}
 
-	pub(crate) fn downgrade_function(&self, f: &F) -> ExecResult<InternalFunction<F>, Error<L, C, S, F>> {
+	pub(crate) fn downgrade_function(
+		&self,
+		f: &F,
+	) -> ExecResult<InternalFunction<F>, Error<L, C, S, F>> {
 		if let Some(internal_f) = self.internal.functions_ids.get(f) {
 			Ok(internal_f.clone())
 		} else {
@@ -102,7 +127,10 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 		}
 	}
 
-	pub(crate) fn downgrade_signature(&self, sig: FunctionSignature<S>) -> ExecResult<InternalFunctionSignature, Error<L, C, S, F>> {
+	pub(crate) fn downgrade_signature(
+		&self,
+		sig: FunctionSignature<S>,
+	) -> ExecResult<InternalFunctionSignature, Error<L, C, S, F>> {
 		match sig {
 			FunctionSignature::User { args, return_sort } => {
 				let mut d_args = Vec::with_capacity(args.len());
@@ -114,14 +142,14 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 
 				Ok(InternalFunctionSignature::User {
 					args: d_args,
-					return_sort: d_return_sort
+					return_sort: d_return_sort,
 				})
-			},
+			}
 			FunctionSignature::Equality => Ok(InternalFunctionSignature::Equality),
 			FunctionSignature::LogicUnary => Ok(InternalFunctionSignature::LogicUnary),
 			FunctionSignature::LogicBinary => Ok(InternalFunctionSignature::LogicBinary),
 			FunctionSignature::LogicNary => Ok(InternalFunctionSignature::LogicNary),
-			FunctionSignature::Ite => Ok(InternalFunctionSignature::Ite)
+			FunctionSignature::Ite => Ok(InternalFunctionSignature::Ite),
 		}
 	}
 
@@ -133,7 +161,10 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 		}
 	}
 
-	pub(crate) fn downgrade_ground_sort(&self, sort: &GroundSort<S>) -> ExecResult<GroundSort<Ident>, Error<L, C, S, F>> {
+	pub(crate) fn downgrade_ground_sort(
+		&self,
+		sort: &GroundSort<S>,
+	) -> ExecResult<GroundSort<Ident>, Error<L, C, S, F>> {
 		let mut parameters = Vec::with_capacity(sort.parameters.len());
 		for p in &sort.parameters {
 			parameters.push(self.downgrade_ground_sort(p)?);
@@ -141,24 +172,31 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 
 		Ok(GroundSort {
 			sort: self.downgrade_sort(&sort.sort)?,
-			parameters: parameters
+			parameters: parameters,
 		})
 	}
 
-	pub(crate) fn downgrade_sort_declaration(&self, decl: &SortDeclaration<Self>) -> ExecResult<SortDeclaration<Internal<L, C, F>>, Error<L, C, S, F>> {
+	pub(crate) fn downgrade_sort_declaration(
+		&self,
+		decl: &SortDeclaration<Self>,
+	) -> ExecResult<SortDeclaration<Internal<L, C, F>>, Error<L, C, S, F>> {
 		Ok(SortDeclaration {
 			id: decl.id.clone(),
-			arity: decl.arity
+			arity: decl.arity,
 		})
 	}
 
-	pub(crate) fn upgrade_term(&self, term: &Typed<Term<Internal<L, C, F>>>) -> ExecResult<Typed<Term<Self>>, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_term(
+		&self,
+		term: &Typed<Term<Internal<L, C, F>>>,
+	) -> ExecResult<Typed<Term<Self>>, Error<L, C, S, F>> {
 		use Term::*;
 		let kind: ExecResult<Term<Self>, Error<L, C, S, F>> = match term.as_ref() {
-			Const(Sorted(c, sort)) => {
-				Ok(Const(Sorted(c.clone(), self.upgrade_ground_sort(sort)?)))
-			},
-			Var { index, id } => Ok(Var { index: *index, id: id.clone() }),
+			Const(Sorted(c, sort)) => Ok(Const(Sorted(c.clone(), self.upgrade_ground_sort(sort)?))),
+			Var { index, id } => Ok(Var {
+				index: *index,
+				id: id.clone(),
+			}),
 			Let { bindings, body } => {
 				let mut internal_bindings = Vec::with_capacity(bindings.len());
 				for b in bindings.iter() {
@@ -166,9 +204,9 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 				}
 				Ok(Let {
 					bindings: internal_bindings,
-					body: Box::new(self.upgrade_term(body)?)
+					body: Box::new(self.upgrade_term(body)?),
 				})
-			},
+			}
 			Forall { vars, body } => {
 				let mut internal_vars = Vec::with_capacity(vars.len());
 				for x in vars.iter() {
@@ -176,9 +214,9 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 				}
 				Ok(Forall {
 					vars: internal_vars,
-					body: Box::new(self.upgrade_term(body)?)
+					body: Box::new(self.upgrade_term(body)?),
 				})
-			},
+			}
 			Exists { vars, body } => {
 				let mut internal_vars = Vec::with_capacity(vars.len());
 				for x in vars.iter() {
@@ -186,9 +224,9 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 				}
 				Ok(Exists {
 					vars: internal_vars,
-					body: Box::new(self.upgrade_term(body)?)
+					body: Box::new(self.upgrade_term(body)?),
 				})
-			},
+			}
 			Match { term, cases } => {
 				let mut u_cases = Vec::with_capacity(cases.len());
 				for c in cases {
@@ -196,9 +234,9 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 				}
 				Ok(Match {
 					term: Box::new(self.upgrade_term(term)?),
-					cases: u_cases
+					cases: u_cases,
 				})
-			},
+			}
 			Apply { fun, args } => {
 				let mut internal_args = Vec::with_capacity(args.len());
 				for a in args.iter() {
@@ -206,33 +244,52 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 				}
 				Ok(Apply {
 					fun: self.upgrade_function(fun)?,
-					args: Box::new(internal_args)
+					args: Box::new(internal_args),
 				})
 			}
 		};
-		Ok(Typed::new(kind?, term.span(), self.upgrade_ground_sort(term.sort())?))
+		Ok(Typed::new(
+			kind?,
+			term.span(),
+			self.upgrade_ground_sort(term.sort())?,
+		))
 	}
 
-	pub(crate) fn upgrade_case(&self, _case: &MatchCase<Internal<L, C, F>>) -> ExecResult<MatchCase<Self>, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_case(
+		&self,
+		_case: &MatchCase<Internal<L, C, F>>,
+	) -> ExecResult<MatchCase<Self>, Error<L, C, S, F>> {
 		panic!("TODO")
 	}
 
-	pub(crate) fn upgrade_pattern(&self, _pattern: &Typed<Pattern<Internal<L, C, F>>>) -> ExecResult<Typed<Pattern<Self>>, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_pattern(
+		&self,
+		_pattern: &Typed<Pattern<Internal<L, C, F>>>,
+	) -> ExecResult<Typed<Pattern<Self>>, Error<L, C, S, F>> {
 		panic!("TODO")
 	}
 
-	pub(crate) fn upgrade_binding(&self, _binding: &Binding<Internal<L, C, F>>) -> ExecResult<Binding<Self>, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_binding(
+		&self,
+		_binding: &Binding<Internal<L, C, F>>,
+	) -> ExecResult<Binding<Self>, Error<L, C, S, F>> {
 		panic!("TODO")
 	}
 
-	pub(crate) fn upgrade_sorted_var(&self, x: &SortedVar<Internal<L, C, F>>) -> ExecResult<SortedVar<Self>, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_sorted_var(
+		&self,
+		x: &SortedVar<Internal<L, C, F>>,
+	) -> ExecResult<SortedVar<Self>, Error<L, C, S, F>> {
 		Ok(SortedVar {
 			id: x.id.clone(),
-			sort: self.upgrade_ground_sort(&x.sort)?
+			sort: self.upgrade_ground_sort(&x.sort)?,
 		})
 	}
 
-	pub(crate) fn upgrade_function(&self, f: &InternalFunction<F>) -> ExecResult<F, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_function(
+		&self,
+		f: &InternalFunction<F>,
+	) -> ExecResult<F, Error<L, C, S, F>> {
 		Ok(f.f.clone())
 	}
 
@@ -244,7 +301,10 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 		}
 	}
 
-	pub(crate) fn upgrade_abstract_sort(&self, sort: &AbstractGroundSort<Ident>) -> ExecResult<AbstractGroundSort<S>, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_abstract_sort(
+		&self,
+		sort: &AbstractGroundSort<Ident>,
+	) -> ExecResult<AbstractGroundSort<S>, Error<L, C, S, F>> {
 		match sort {
 			AbstractGroundSort::Param(i) => Ok(AbstractGroundSort::Param(*i)),
 			AbstractGroundSort::Sort { sort, parameters } => {
@@ -255,13 +315,16 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 
 				Ok(AbstractGroundSort::Sort {
 					sort: self.upgrade_sort(sort)?,
-					parameters: u_parameters
+					parameters: u_parameters,
 				})
 			}
 		}
 	}
 
-	pub(crate) fn upgrade_ground_sort(&self, sort: &GroundSort<Ident>) -> ExecResult<GroundSort<S>, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_ground_sort(
+		&self,
+		sort: &GroundSort<Ident>,
+	) -> ExecResult<GroundSort<S>, Error<L, C, S, F>> {
 		let mut parameters = Vec::with_capacity(sort.parameters.len());
 		for p in &sort.parameters {
 			parameters.push(self.upgrade_ground_sort(p)?);
@@ -269,22 +332,28 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 
 		Ok(GroundSort {
 			sort: self.upgrade_sort(&sort.sort)?,
-			parameters: parameters
+			parameters: parameters,
 		})
 	}
 
-	pub(crate) fn upgrade_model(&self, model: &response::Model<Internal<L, C, F>>) -> ExecResult<response::Model<Self>, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_model(
+		&self,
+		model: &response::Model<Internal<L, C, F>>,
+	) -> ExecResult<response::Model<Self>, Error<L, C, S, F>> {
 		let mut definitions = Vec::with_capacity(model.definitions.len());
 		for def in model.definitions.iter() {
 			definitions.push(self.upgrade_definition(def)?);
 		}
 
 		Ok(response::Model {
-			definitions: definitions
+			definitions: definitions,
 		})
 	}
 
-	pub(crate) fn upgrade_definition(&self, def: &response::Definition<Internal<L, C, F>>) -> ExecResult<response::Definition<Self>, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_definition(
+		&self,
+		def: &response::Definition<Internal<L, C, F>>,
+	) -> ExecResult<response::Definition<Self>, Error<L, C, S, F>> {
 		let mut declarations = Vec::with_capacity(def.declarations.len());
 		let mut bodies = Vec::with_capacity(def.bodies.len());
 
@@ -300,11 +369,14 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 			rec: def.rec,
 			declarations: declarations,
 			bodies: bodies,
-			comments: def.comments.clone()
+			comments: def.comments.clone(),
 		})
 	}
 
-	pub(crate) fn upgrade_declaration(&self, decl: &response::Declaration<Internal<L, C, F>>) -> ExecResult<response::Declaration<Self>, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_declaration(
+		&self,
+		decl: &response::Declaration<Internal<L, C, F>>,
+	) -> ExecResult<response::Declaration<Self>, Error<L, C, S, F>> {
 		let f = self.upgrade_function(&decl.f)?;
 
 		let mut args = Vec::with_capacity(decl.args.len());
@@ -317,11 +389,14 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 		Ok(response::Declaration {
 			f: f,
 			args: args,
-			return_sort: return_sort
+			return_sort: return_sort,
 		})
 	}
 
-	pub(crate) fn upgrade_result<T>(&self, r: ExecResult<T, InternalError<L, C, F>>) -> ExecResult<T, Error<L, C, S, F>> {
+	pub(crate) fn upgrade_result<T>(
+		&self,
+		r: ExecResult<T, InternalError<L, C, F>>,
+	) -> ExecResult<T, Error<L, C, S, F>> {
 		match r {
 			Ok(t) => Ok(t),
 			Err(e) => {
@@ -345,12 +420,11 @@ impl<L, C: Constant, S: Sort, F: Function> Client<L, C, S, F> {
 								use typing::Error::*;
 								let kind = match e {
 									Missmatch(_missmatch) => panic!("TODO upgrade type missmatch"),
-									Ambiguity => Ambiguity
+									Ambiguity => Ambiguity,
 								};
 								Type(kind)
-							}
-							// TypeMissmatch(expected, given) => TypeMissmatch(self.upgrade_abstract_sort(&expected)?, self.upgrade_ground_sort(&given)?),
-							// TypeAmbiguity => TypeAmbiguity
+							} // TypeMissmatch(expected, given) => TypeMissmatch(self.upgrade_abstract_sort(&expected)?, self.upgrade_ground_sort(&given)?),
+							  // TypeAmbiguity => TypeAmbiguity
 						};
 
 						Error::Compile(Located::new(kind, location))

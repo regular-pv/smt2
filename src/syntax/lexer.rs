@@ -1,21 +1,26 @@
+use super::{token, Error, Result, Token};
+use crate::Located;
+use source_span::{Metrics, Position, Span};
 use std::io;
 use std::iter::Peekable;
-use source_span::{
-	Position,
-	Span,
-	Metrics
-};
-use crate::Located;
-use super::{token, Token, Result, Error};
 
-pub struct Lexer<R: Iterator<Item=io::Result<char>>, M: Metrics> {
+pub struct Lexer<R: Iterator<Item = io::Result<char>>, M: Metrics> {
 	decoder: Peekable<R>,
 	location: Span,
-	metrics: M
+	metrics: M,
 }
 
 fn is_separator(c: char) -> bool {
-	c == '.' || c == ';' || c == ':' || c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']' || c == ','
+	c == '.'
+		|| c == ';'
+		|| c == ':'
+		|| c == '('
+		|| c == ')'
+		|| c == '{'
+		|| c == '}'
+		|| c == '['
+		|| c == ']'
+		|| c == ','
 }
 
 impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Lexer<R, M> {
@@ -24,7 +29,7 @@ impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Lexer<R, M> {
 			decoder: source.peekable(),
 			location: cursor.into(),
 			//buffer: Buffer::new(cursor),
-			metrics
+			metrics,
 		}
 	}
 
@@ -44,11 +49,11 @@ impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Lexer<R, M> {
 			Some(Ok(c)) => {
 				// eprintln!("peeking: {}", c);
 				Ok(Some(*c))
-			},
+			}
 			Some(Err(_)) => {
 				Ok(Some(self.consume()?)) // this will always fail.
-			},
-			None => Ok(None)
+			}
+			None => Ok(None),
 		}
 	}
 
@@ -57,14 +62,18 @@ impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Lexer<R, M> {
 			Some(Ok(c)) => {
 				self.location.push(c, &self.metrics);
 				Ok(c)
-			},
+			}
 			Some(Err(e)) => {
 				self.location.clear();
 				Err(Error::IO(e).at(self.location.clone()))
-			},
+			}
 			None => {
 				self.location.clear();
-				Err(Error::IO(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "unexpected enf of stream")).at(self.location.clone()))
+				Err(Error::IO(std::io::Error::new(
+					std::io::ErrorKind::UnexpectedEof,
+					"unexpected enf of stream",
+				))
+				.at(self.location.clone()))
 			}
 		}
 	}
@@ -78,8 +87,8 @@ impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Lexer<R, M> {
 				}
 				Some(c) if c.is_whitespace() => {
 					self.consume()?;
-				},
-				_ => break
+				}
+				_ => break,
 			}
 		}
 
@@ -94,7 +103,7 @@ impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Lexer<R, M> {
 			match self.peek_char()? {
 				Some('\n') => {
 					self.consume()?;
-					break
+					break;
 				}
 				_ => {
 					self.consume()?;
@@ -113,8 +122,8 @@ impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Lexer<R, M> {
 			match self.peek_char()? {
 				Some(c) if !c.is_whitespace() && !is_separator(c) => {
 					name.push(self.consume()?);
-				},
-				_ => break
+				}
+				_ => break,
 			}
 		}
 
@@ -132,20 +141,16 @@ impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Lexer<R, M> {
 			if escape {
 				match self.consume()? {
 					'n' => string.push('\n'),
-					c => string.push(c)
+					c => string.push(c),
 				}
 				escape = false;
 			} else {
 				match self.consume()? {
 					'\\' => {
 						escape = true;
-					},
-					'"' => {
-						break
-					},
-					c => {
-						string.push(c)
 					}
+					'"' => break,
+					c => string.push(c),
 				}
 			}
 		}
@@ -191,14 +196,14 @@ impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Lexer<R, M> {
 						let location = self.location;
 						self.location.clear();
 						Ok(Some(Token::Begin.at(location)))
-					},
+					}
 
 					')' => {
 						self.consume()?;
 						let location = self.location;
 						self.location.clear();
 						Ok(Some(Token::End.at(location)))
-					},
+					}
 
 					'"' => {
 						self.consume()?;
@@ -222,13 +227,10 @@ impl<R: Iterator<Item = io::Result<char>>, M: Metrics> Lexer<R, M> {
 					// c if c.is_digit(10) => {
 					// 	Ok(Some(self.read_numeric(10, true)?))
 					// },
-
-					_ => {
-						Ok(Some(self.read_ident()?))
-					}
+					_ => Ok(Some(self.read_ident()?)),
 				}
-			},
-			None => Ok(None)
+			}
+			None => Ok(None),
 		}
 	}
 }

@@ -7,15 +7,12 @@ use std::ops::Deref;
  */
 pub struct Located<T> {
 	t: T,
-	span: Span
+	span: Span,
 }
 
 impl<T> Located<T> {
 	pub fn new(t: T, span: Span) -> Located<T> {
-		Located {
-			t: t,
-			span: span
-		}
+		Located { t: t, span: span }
 	}
 
 	pub fn into_inner(self) -> T {
@@ -59,7 +56,7 @@ impl<T: Clone> Clone for Located<T> {
 	fn clone(&self) -> Self {
 		Located {
 			t: self.t.clone(),
-			span: self.span
+			span: self.span,
 		}
 	}
 }

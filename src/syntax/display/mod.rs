@@ -1,5 +1,5 @@
-use crate::Located;
 use super::*;
+use crate::Located;
 
 pub type Result = std::fmt::Result;
 
@@ -16,7 +16,7 @@ impl<T: Display> Display for Located<T> {
 pub struct Formatter<'f, 'a> {
 	f: &'f mut std::fmt::Formatter<'a>,
 	empty: bool,
-	tabs: u32
+	tabs: u32,
 }
 
 pub struct PrettyPrint<'a, T>(pub &'a T);
@@ -26,7 +26,7 @@ impl<'a, T: Display> std::fmt::Display for PrettyPrint<'a, T> {
 		let mut ppf = Formatter {
 			f: f,
 			empty: true,
-			tabs: 0
+			tabs: 0,
 		};
 
 		self.0.fmt(&mut ppf)
@@ -155,28 +155,28 @@ impl Display for Term {
 				f.list(bindings)?;
 				body.fmt(f)?;
 				f.end()
-			},
+			}
 			Forall { vars, body } => {
 				f.begin()?;
 				f.keyword("forall")?;
 				f.list(vars)?;
 				body.fmt(f)?;
 				f.end()
-			},
+			}
 			Exists { vars, body } => {
 				f.begin()?;
 				f.keyword("exists")?;
 				f.list(vars)?;
 				body.fmt(f)?;
 				f.end()
-			},
+			}
 			Match { term, cases } => {
 				f.begin()?;
 				f.keyword("match")?;
 				term.fmt(f)?;
 				f.tabulated_list(cases)?;
 				f.end()
-			},
+			}
 			Apply { id, args } => {
 				if args.is_empty() {
 					id.fmt(f)
@@ -186,7 +186,7 @@ impl Display for Term {
 					f.list(args)?;
 					f.end()
 				}
-			},
+			}
 			Coerce { term, sort } => {
 				f.begin()?;
 				f.keyword("at")?;

@@ -1,5 +1,5 @@
-use std::fmt;
 use source_span::Span;
+use std::fmt;
 
 use super::Located;
 
@@ -12,8 +12,7 @@ pub enum Litteral {
 	//  * Signed numeric value.
 	//  */
 	// Int(i64),
-
-	String(String)
+	String(String),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -21,7 +20,7 @@ pub enum Token {
 	/**
 	 * End of file token.
 	 */
-	 EndOfFile,
+	EndOfFile,
 
 	/**
 	 * Opening parenthesis.
@@ -58,7 +57,7 @@ impl fmt::Display for Token {
 			Begin => write!(f, "("),
 			End => write!(f, ")"),
 			Ident(id) => write!(f, "{}", id),
-			Litteral(lit) => write!(f, "{}", lit)
+			Litteral(lit) => write!(f, "{}", lit),
 		}
 	}
 }
@@ -68,7 +67,7 @@ impl fmt::Display for Litteral {
 		use self::Litteral::*;
 		match self {
 			// Int(i) => write!(f, "{}", i),
-			String(string) => write!(f, "\"{}\"", string)
+			String(string) => write!(f, "\"{}\"", string),
 		}
 	}
 }

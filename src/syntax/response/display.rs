@@ -1,5 +1,5 @@
-use crate::syntax;
 use super::*;
+use crate::syntax;
 
 type Result = crate::syntax::display::Result;
 

@@ -1,11 +1,11 @@
-use std::fmt;
 use crate::syntax;
+use std::fmt;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum Ident {
 	Raw(String),
 	Sort(u32),
-	Fun(u32)
+	Fun(u32),
 }
 
 impl Ident {
@@ -27,7 +27,7 @@ impl Ident {
 				let id_str = str.get(4..).unwrap();
 				match u32::from_str_radix(id_str, 16) {
 					Ok(id) => return Ident::Sort(id),
-					_ => ()
+					_ => (),
 				}
 			}
 		}
@@ -37,7 +37,7 @@ impl Ident {
 				let id_str = str.get(1..).unwrap();
 				match u32::from_str_radix(id_str, 16) {
 					Ok(id) => return Ident::Fun(id),
-					_ => ()
+					_ => (),
 				}
 			}
 		}
@@ -55,7 +55,7 @@ impl fmt::Display for Ident {
 		match self {
 			Ident::Raw(name) => write!(f, "{}", name),
 			Ident::Sort(id) => write!(f, "Sort{:x}", id),
-			Ident::Fun(id) => write!(f, "f{:x}", id)
+			Ident::Fun(id) => write!(f, "f{:x}", id),
 		}
 	}
 }
